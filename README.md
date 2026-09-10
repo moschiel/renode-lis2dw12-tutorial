@@ -18,12 +18,33 @@ comparing readings and UART output as each feature is added.
 > their implementation is outside the teaching scope. The future GUI will be
 > optional, for visualizing registers and UART output.
 
-The `.resc` scripts are part of the tutorial. Complete blocks and comments
-explain how to check the model in Renode.
-
 Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
 It introduces C# models, REPL platforms, and the Monitor. Here we move on to
 register maps and transaction state.
+
+## Limits and references
+
+The goal is to cover every documented register, focusing on observable digital
+rules. Electrical characteristics, analog filtering, noise, power consumption,
+and physical performance are not simulated. Settings affecting only those
+properties may retain their written values without reproducing their effects.
+
+Each field will have an explicit policy: functional behavior, stored configuration,
+or fixed/injected data. Reset values, access permissions, command clearing, and
+status semantics must be considered separately; a blanket read/write echo can
+leave firmware waiting forever. Reserved addresses are not writable scratch storage.
+
+Register coverage does not imply a complete FIFO, gesture engine, temperature
+simulation, or sampling scheduler. Those groups will explicitly describe which
+digital behaviors are implemented and which are simplified or mocked. SPI remains
+a separate transport extension. Comparisons cover the demonstrated firmware and
+configurations, not arbitrary drivers.
+
+- [Preparatory PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
+- [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in section 6, register map in section 7, and registers in section 8.
+- [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
+- [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
+
 
 ## 1. Set up the project and I2C skeleton
 
@@ -309,28 +330,5 @@ renode --console --disable-gui --plain tests/reference.resc
 This test uses `Sensors.LIS2DW12`, the model distributed with Renode, and checks
 the `0x44` identifier described in **section 8.3, WHO_AM_I**. It is an initial
 reference check just to make sure the official model is available and running in your environment.
-
-## Limits and references
-
-The goal is to cover every documented register, focusing on observable digital
-rules. Electrical characteristics, analog filtering, noise, power consumption,
-and physical performance are not simulated. Settings affecting only those
-properties may retain their written values without reproducing their effects.
-
-Each field will have an explicit policy: functional behavior, stored configuration,
-or fixed/injected data. Reset values, access permissions, command clearing, and
-status semantics must be considered separately; a blanket read/write echo can
-leave firmware waiting forever. Reserved addresses are not writable scratch storage.
-
-Register coverage does not imply a complete FIFO, gesture engine, temperature
-simulation, or sampling scheduler. Those groups will explicitly describe which
-digital behaviors are implemented and which are simplified or mocked. SPI remains
-a separate transport extension. Comparisons cover the demonstrated firmware and
-configurations, not arbitrary drivers.
-
-- [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in section 6, register map in section 7, and registers in section 8.
-- [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
-- [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
-- [Preparatory PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
 
 ## 2. WHO_AM_I and STM32 firmware (work in progress)
