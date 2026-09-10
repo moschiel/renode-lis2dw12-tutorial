@@ -314,22 +314,4 @@ exiting. An `assert` stops the script if the response differs. If an error occur
 check the message before the prompt; the process exit code alone does not
 guarantee that the assertions passed.
 
-### Confirm the installed reference model
-
-`tests/reference.resc` is also supplied. It instantiates Renode's official
-`Sensors.LIS2DW12` and verifies its `WHO_AM_I` response before our model has
-implemented that register. Its comments describe the direct Monitor calls.
-
-**Terminal:**
-
-```sh
-renode --console --disable-gui --plain tests/reference.resc
-```
-
-**Expected:** `PASS reference: WHO_AM_I baseline`.
-
-This test uses `Sensors.LIS2DW12`, the model distributed with Renode, and checks
-the `0x44` identifier described in **section 8.3, WHO_AM_I**. It is an initial
-reference check just to make sure the official model is available and running in your environment.
-
 ## 2. WHO_AM_I and STM32 firmware (work in progress)
