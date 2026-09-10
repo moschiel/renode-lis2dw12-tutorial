@@ -15,6 +15,7 @@ BLOCK = re.compile(
 CHECKS = [
     ("tests/transport.resc", "PASS transport: register storage", "stage1"),
     ("tests/who_am_i.resc", "PASS who_am_i: register behavior", "stage2"),
+    ("tests/compare_models.resc", "PASS compare: custom and reference WHO_AM_I", "stage2"),
     ("tests/reference.resc", "PASS reference: WHO_AM_I baseline", "stage2"),
 ]
 

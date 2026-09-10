@@ -1,0 +1,22 @@
+include @models/LIS2DW12.cs
+mach create "lis2dw12-model-comparison"
+machine LoadPlatformDescriptionFromString "custom: Tutorial.LIS2DW12 @ sysbus"
+machine LoadPlatformDescriptionFromString "reference: Sensors.LIS2DW12 @ sysbus"
+
+python "from System import Array, Byte"
+python "custom = monitor.Machine['sysbus.custom']"
+python "reference = monitor.Machine['sysbus.reference']"
+python "custom.Reset()"
+python "reference.Reset()"
+
+# WHO_AM_I is the first behavior shared by both models.
+python "custom.Write(Array[Byte]([0x0F]))"
+python "reference.Write(Array[Byte]([0x0F]))"
+python "customValue = list(custom.Read(1))"
+python "referenceValue = list(reference.Read(1))"
+python "print('custom WHO_AM_I: ' + str(customValue))"
+python "print('reference WHO_AM_I: ' + str(referenceValue))"
+python "assert customValue == referenceValue == [0x44], 'WHO_AM_I comparison failed'"
+
+echo "PASS compare: custom and reference WHO_AM_I"
+quit

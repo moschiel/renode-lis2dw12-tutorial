@@ -4,7 +4,10 @@ __pycache__/
 *.config
 .vscode/
 .idea/
-firmware/**/Debug/
+firmware/**/Debug/*
+!firmware/lis2dw12-demo/Debug/
+firmware/lis2dw12-demo/Debug/*
+!firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
 firmware/**/Release/
 firmware/**/.settings/
 

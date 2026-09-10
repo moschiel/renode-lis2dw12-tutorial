@@ -70,7 +70,7 @@ cd ../my-lis2dw12
 All remaining commands start from `my-lis2dw12`.
 **Monitor** blocks run inside the Renode session, not in the terminal.
 
-### Separate transport and registers
+### Separate I2C transport from register storage
 
 In **section 6.1.1, I2C operation**, the datasheet describes the `SUB` byte,
 which selects an internal register. During a write, subsequent bytes are data.
@@ -81,10 +81,10 @@ The device address, selected as `0x18` or `0x19` by SA0, will be configured in
 the platform when we connect the STM32. It is distinct from `SUB` and should
 not be interpreted as the first byte of `Write`.
 
-The implementation has two responsibilities:
+The implementation separates two responsibilities:
 
-- `II2CPeripheral` receives accesses and keeps the selected register between calls.
-- `ByteRegisterCollection` stores eight-bit registers, their fields, permissions, and reset values.
+- `II2CPeripheral` represents the I2C transport: it receives bytes from the master, selects the target register, and returns response bytes.
+- `ByteRegisterCollection` represents the register storage: it stores register values and applies their fields, permissions, and reset values.
 
 The [official model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs)
 also separates these responsibilities. Its `Write` accepts address and data in
@@ -271,15 +271,15 @@ python "print(list(dev.Read(1)))"
 ```
 
 `Array[Byte]` creates an array for the C# method. `dev` points to the `accel`
-instance declared in the REPL. **Expected:** `[165]`, or `0xA5`, the reset
+instance declared in the REPL, the Write and Read call are the functions declared in the C# model. **Expected:** `[165]`, or `0xA5`, the reset
 value of `TRANSPORT_TEST`. Enter `quit` when finished.
 
 This demonstrates direct, interactive testing through the Monitor.
 
-From this point onward, the tutorial uses supplied `.resc` scripts for validation.
-They are repeatable, document the expected behavior in comments, and will grow
-with each stage. Take a look at the test files to understand the syntax used to
-write Renode tests.
+From this point onward, the tutorial uses supplied `.resc` scripts for validation, therefore there is no need to type direclty in the monitor the testing instructions.
+The `.resc` scritps are repeatable, document the expected behavior in comments, and will grow
+with each stage.
+Take a look at the test files to understand the syntax used to write Renode tests.
 
 ### Run the stage 1 validation
 
@@ -302,18 +302,19 @@ guarantee that the assertions passed.
 </details>
 
 <details>
-<summary>2. WHO_AM_I and STM32 firmware (work in progress)</summary>
+<summary>2. WHO_AM_I and STM32 firmware</summary>
 
+
+### Register behavior
+
+`WHO_AM_I` identifies the connected sensor. A master selects sub-address `0x0F`
+over I2C and receives the fixed value `0x44`. The register is read-only, so a
+write must not change the value.
 
 ### Implement the register
 
-The first real register is `WHO_AM_I`, described in **DS11811 Rev. 9, section
-8.3**. It is located at sub-address `0x0F`, is read-only, and returns `0x44`.
-This is a good first register because it has no dependency on sensor sampling
-or configuration.
-
 In `models/LIS2DW12.cs`, replace the temporary `TRANSPORT_TEST` definition from
-section 1 with:
+section 1 with the register described in **DS11811 Rev. 9, section 8.3**:
 
 ```csharp
 // DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.
@@ -342,9 +343,8 @@ The supplied project in `firmware/lis2dw12-demo` was generated with STM32CubeMX
 for **NUCLEO-F401RE / STM32F401RET6**. It uses HAL, I2C1 on PB6/PB7, and USART2
 on PA2/PA3. Open the project in STM32CubeIDE and build it.
 
-The firmware keeps the same project for all later sections. For this section,
-the relevant application code is limited to the following snippets from
-`Core/Src/main.c`.
+For this section, the relevant application code
+is limited to the following snippets from `Core/Src/main.c`.
 
 The 7-bit device address is shifted because the STM32 HAL expects the address
 in the I2C transaction format. The register sub-address remains `0x0F`:
@@ -393,18 +393,23 @@ ValidateWhoAmI();
 The clock setup, HAL initialization, interrupt handlers, and generated driver
 code are supplied by CubeMX and are not specific to this register.
 
-You can build it with STM32CubeIDE, or use the supplied `tools/build_firmware.py`
-without an IDE. The script calls Arm GNU Toolchain directly and is usable on
-Windows or Linux. If `arm-none-eabi-gcc` is not on `PATH`, pass its full path:
-
-```powershell
-python tools\build_firmware.py --gcc "C:\path\to\arm-none-eabi-gcc.exe"
-```
-
-With the bundled STM32CubeIDE toolchain, the executable is under the IDE's
-`plugins/...gnu-tools-for-stm32.../tools/bin/` directory. The script uses the
-F401RE compiler define and linker script, then writes the ELF to
-`firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf`.
+> **Note:** The precompiled binary is already available at
+> `firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf`, so you do not need to
+> compile the firmware to follow this tutorial.
+>
+> If you edit the firmware source, you can rebuild it with STM32CubeIDE or use
+> the supplied `tools/build_firmware.py` without an IDE. The script calls Arm
+> GNU Toolchain directly and is usable on Windows or Linux. If
+> `arm-none-eabi-gcc` is not on `PATH`, pass its full path:
+>
+> ```powershell
+> python tools\build_firmware.py --gcc "C:\path\to\arm-none-eabi-gcc.exe"
+> ```
+>
+> With the bundled STM32CubeIDE toolchain, the executable is under the IDE's
+> `plugins/...gnu-tools-for-stm32.../tools/bin/` directory. The script uses the
+> F401RE compiler define and linker script, then writes the ELF to the same
+> `firmware/lis2dw12-demo/Debug/` directory used by STM32CubeIDE.
 
 ### Connect the STM32
 
@@ -434,9 +439,9 @@ sysbus LoadELF $bin
 showAnalyzer usart2
 ```
 
-Build the firmware before running this script. The ELF path is the default
-STM32CubeIDE Debug output path; update `$bin` if your IDE uses another output
-directory.
+The script loads the supplied precompiled ELF. You only need to rebuild the
+firmware if you edit `Core/Src/main.c`; the builder writes the replacement to
+the same path.
 
 Run it from the project root:
 
@@ -444,13 +449,14 @@ Run it from the project root:
 renode --console --plain scripts/stm32_lis2dw12.resc
 ```
 
-Start the emulation with `start`. The UART analyzer should display:
-`WHO_AM_I: 0x44`.
+Start the emulation with `start`.
+The `showAnalyzer usart2` command in the script opens a window for debugging UART2;
+As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
 
-The same firmware can now be tested against the official
-`Sensors.LIS2DW12` model by changing only the peripheral type in the platform.
-That comparison will become cumulative as later register behavior is added.
+</details>
 
+<details>
+<summary>3. CTRL1 and CTRL2.IF_ADD_INC (work in progress)</summary>
 </details>
 
 <details>
@@ -477,5 +483,15 @@ configurations, not arbitrary drivers.
 - [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in section 6, register map in section 7, and registers in section 8.
 - [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
 - [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
+
+### Optional model comparison
+
+At the end of the tutorial, `tests/compare_models.resc` can be used to run the
+cumulative checks against both `Tutorial.LIS2DW12` and Renode's official
+`Sensors.LIS2DW12` model. Run it from the project root:
+
+```sh
+renode --console --disable-gui --plain tests/compare_models.resc
+```
 
 </details>
