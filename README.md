@@ -253,9 +253,12 @@ peripherals
 ```
 
 **Expected:** an `accel (LIS2DW12)` entry under `sysbus`.
+
+```text
   sysbus (SystemBus)
   │
   └── accel (LIS2DW12)
+```
 
 You can write Python snippets in the **Monitor** to manually test the model's
 expected behavior:
