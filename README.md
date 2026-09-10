@@ -13,20 +13,21 @@ Hardware behavior comes from the [ST DS11811 Rev. 9 datasheet](https://www.st.co
 The intended result is to run the same STM32 firmware against both models,
 comparing readings and UART output as each feature is added.
 
+Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
+It introduces C# models, REPL platforms, and the Monitor. Here we move on to
+register maps and transaction state.
+
 > **Scope:** this tutorial focuses on functional digital modeling and firmware
 > integration. The GUI and utility scripts are 100% *vibe coded* support assets;
 > their implementation is outside the teaching scope. The future GUI will be
 > optional, for visualizing registers and UART output.
 
-Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
-It introduces C# models, REPL platforms, and the Monitor. Here we move on to
-register maps and transaction state.
 
 ## Limits and references
 
-The goal is to cover every documented register, focusing on observable digital
+We will try to cover every documented register, focusing on observable digital
 rules. Electrical characteristics, analog filtering, noise, power consumption,
-and physical performance are not simulated. Settings affecting only those
+and physical performance are **not** simulated. Settings affecting only those
 properties may retain their written values without reproducing their effects.
 
 Each field will have an explicit policy: functional behavior, stored configuration,
