@@ -1,0 +1,15 @@
+mach create "lis2dw12-reference"
+machine LoadPlatformDescriptionFromString "reference: Sensors.LIS2DW12 @ sysbus"
+python "from System import Array, Byte"
+python "dev = monitor.Machine['sysbus.reference']"
+python "dev.Reset()"
+
+# DS11811 Rev. 9, section 8.3. Baseline only; our skeleton has no WHO_AM_I yet.
+python "dev.Write(Array[Byte]([0x0F]))"
+python "assert list(dev.Read(1)) == [0x44], 'reference WHO_AM_I mismatch'"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x0F]))"
+python "assert list(dev.Read(1)) == [0x44], 'reference transaction boundary mismatch'"
+
+echo "PASS reference: WHO_AM_I baseline"
+quit

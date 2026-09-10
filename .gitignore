@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.log
+*.config
+.vscode/
+.idea/
+firmware/**/Debug/
+firmware/**/Release/
+
+# Keep authoring notes local; publish only the tutorial READMEs.
+*.md
+!README.md
+!README.pt-BR.md
