@@ -10,9 +10,9 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         public LIS2DW12()
         {
             RegistersCollection = new ByteRegisterCollection(this);
-            // Temporary stage-1 storage. It will be replaced by WHO_AM_I.
-            RegistersCollection.DefineRegister(0x10, 0xA5)
-                .WithValueField(0, 8, name: "TRANSPORT_TEST");
+            // DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.
+            RegistersCollection.DefineRegister(0x0F, 0x44)
+                .WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
             Reset();
         }
 

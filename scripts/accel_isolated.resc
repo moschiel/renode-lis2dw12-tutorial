@@ -1,3 +1,3 @@
 include @models/LIS2DW12.cs
-mach create "lis2dw12-stage1"
+mach create "lis2dw12-isolated"
 machine LoadPlatformDescription @platforms/accel_isolated.repl

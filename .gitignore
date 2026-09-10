@@ -6,6 +6,7 @@ __pycache__/
 .idea/
 firmware/**/Debug/
 firmware/**/Release/
+firmware/**/.settings/
 
 # Keep authoring notes local; publish only the tutorial READMEs.
 *.md

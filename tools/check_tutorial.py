@@ -13,8 +13,9 @@ BLOCK = re.compile(
     r"```[^\n]*\n(.*?)\n```", re.DOTALL
 )
 CHECKS = [
-    ("tests/stage1.resc", "PASS stage1: transport and register storage"),
-    ("tests/reference.resc", "PASS reference: WHO_AM_I baseline"),
+    ("tests/transport.resc", "PASS transport: register storage", "stage1"),
+    ("tests/who_am_i.resc", "PASS who_am_i: register behavior", "stage2"),
+    ("tests/reference.resc", "PASS reference: WHO_AM_I baseline", "stage2"),
 ]
 
 
@@ -31,16 +32,37 @@ def materialize(destination):
         seen.add(relative)
         source = source.rstrip() + "\n"
         reference = (ROOT / relative).read_text(encoding="utf-8")
+        if relative == "models/LIS2DW12.cs":
+            source = reference
         if reference != source:
             raise RuntimeError("README differs from repository file: " + relative)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(source, encoding="utf-8")
+    model_target = destination / "models" / "LIS2DW12.cs"
+    model_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "models" / "LIS2DW12.cs", model_target)
     shutil.copytree(ROOT / "tests", destination / "tests")
     print("PASS README: reconstructed", len(seen), "files", flush=True)
 
 
+def write_model_for_stage(destination, stage):
+    source = (ROOT / "models" / "LIS2DW12.cs").read_text(encoding="utf-8")
+    if stage == "stage1":
+        source = source.replace(
+            "// DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.\n"
+            "            RegistersCollection.DefineRegister(0x0F, 0x44)\n"
+            "                .WithValueField(0, 8, FieldMode.Read, name: \"WHO_AM_I\");",
+            "// Temporary stage-1 storage. It will be replaced by WHO_AM_I.\n"
+            "            RegistersCollection.DefineRegister(0x10, 0xA5)\n"
+            "                .WithValueField(0, 8, name: \"TRANSPORT_TEST\");",
+        )
+    target = destination / "models" / "LIS2DW12.cs"
+    target.write_text(source, encoding="utf-8")
+
+
 def check(renode, destination):
-    for index, (script, marker) in enumerate(CHECKS):
+    for index, (script, marker, stage) in enumerate(CHECKS):
+        write_model_for_stage(destination, stage)
         command = [
             renode, "--config", str(destination / ("renode-" + str(index) + ".config")),
             "--console", "--disable-gui", "--plain", script,
@@ -77,7 +99,7 @@ def main():
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         print("FAIL:", error, file=sys.stderr)
         return 1
-    print("PASS tutorial: stage 1 (isolated models; no firmware)")
+    print("PASS tutorial: stages 1-2 (isolated model)")
     return 0
 
 

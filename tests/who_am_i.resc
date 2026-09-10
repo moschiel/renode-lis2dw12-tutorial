@@ -1,0 +1,17 @@
+include @scripts/accel_isolated.resc
+python "from System import Array, Byte"
+python "dev = monitor.Machine['sysbus.accel']"
+
+# DS11811 Rev. 9, section 8.3: WHO_AM_I is selected through SUB 0x0F.
+python "dev.Write(Array[Byte]([0x0F]))"
+python "assert list(dev.Read(1)) == [0x44], 'WHO_AM_I mismatch'"
+
+# The register is read-only; a write must not change its identification value.
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x0F, 0x00]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x0F]))"
+python "assert list(dev.Read(1)) == [0x44], 'WHO_AM_I must not be writable'"
+
+echo "PASS who_am_i: register behavior"
+quit

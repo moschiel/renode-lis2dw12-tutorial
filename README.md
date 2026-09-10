@@ -20,34 +20,13 @@ register maps and transaction state.
 > **Scope:** this tutorial focuses on functional digital modeling and firmware
 > integration. The GUI and utility scripts are 100% *vibe coded* support assets;
 > their implementation is outside the teaching scope. The future GUI will be
-> optional, for visualizing registers and UART output.
+> optional, for visualizing registers and UART output. See
+> [Limits and references](#limits-and-references) for the complete scope.
 
 
-## Limits and references
+<details>
+<summary>1. Set up the project and I2C skeleton</summary>
 
-We will try to cover every documented register, focusing on observable digital
-rules. Electrical characteristics, analog filtering, noise, power consumption,
-and physical performance are **not** simulated. Settings affecting only those
-properties may retain their written values without reproducing their effects.
-
-Each field will have an explicit policy: functional behavior, stored configuration,
-or fixed/injected data. Reset values, access permissions, command clearing, and
-status semantics must be considered separately; a blanket read/write echo can
-leave firmware waiting forever. Reserved addresses are not writable scratch storage.
-
-Register coverage does not imply a complete FIFO, gesture engine, temperature
-simulation, or sampling scheduler. Those groups will explicitly describe which
-digital behaviors are implemented and which are simplified or mocked. SPI remains
-a separate transport extension. Comparisons cover the demonstrated firmware and
-configurations, not arbitrary drivers.
-
-- [Preparatory PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
-- [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in section 6, register map in section 7, and registers in section 8.
-- [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
-- [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
-
-
-## 1. Set up the project and I2C skeleton
 
 You need **Renode 1.16.1** on your PATH.
 See the [installation guide](https://renode.readthedocs.io/en/latest/introduction/installing.html).
@@ -70,8 +49,10 @@ model, platform, and script files from the blocks below.
 
 ```powershell
 New-Item -ItemType Directory ..\my-lis2dw12 -ErrorAction Stop
-New-Item -ItemType Directory ..\my-lis2dw12\models, ..\my-lis2dw12\platforms, ..\my-lis2dw12\scripts
+New-Item -ItemType Directory ..\my-lis2dw12\models, ..\my-lis2dw12\platforms, ..\my-lis2dw12\scripts, ..\my-lis2dw12\tools
 Copy-Item -Recurse tests ..\my-lis2dw12\tests
+Copy-Item -Recurse firmware ..\my-lis2dw12\firmware
+Copy-Item tools\build_firmware.py ..\my-lis2dw12\tools\build_firmware.py
 Set-Location ..\my-lis2dw12
 ```
 
@@ -79,8 +60,10 @@ Set-Location ..\my-lis2dw12
 
 ```bash
 mkdir ../my-lis2dw12
-mkdir ../my-lis2dw12/models ../my-lis2dw12/platforms ../my-lis2dw12/scripts
+mkdir ../my-lis2dw12/models ../my-lis2dw12/platforms ../my-lis2dw12/scripts ../my-lis2dw12/tools
 cp -R tests ../my-lis2dw12/tests
+cp -R firmware ../my-lis2dw12/firmware
+cp tools/build_firmware.py ../my-lis2dw12/tools/build_firmware.py
 cd ../my-lis2dw12
 ```
 
@@ -115,7 +98,6 @@ uses `II2CPeripheral`; this tutorial we are going to implement I2C only.
 
 Create `models/LIS2DW12.cs`:
 
-<!-- tutorial-file: models/LIS2DW12.cs -->
 ```csharp
 using System;
 using Antmicro.Renode.Core.Structure.Registers;
@@ -251,7 +233,7 @@ A **RESC** file groups Monitor commands. Create `scripts/accel_isolated.resc`:
 <!-- tutorial-file: scripts/accel_isolated.resc -->
 ```text
 include @models/LIS2DW12.cs
-mach create "lis2dw12-stage1"
+mach create "lis2dw12-isolated"
 machine LoadPlatformDescription @platforms/accel_isolated.repl
 ```
 
@@ -298,7 +280,7 @@ write Renode tests.
 
 ### Run the stage 1 validation
 
-`tests/stage1.resc` is supplied with the repository. It checks the temporary
+`tests/transport.resc` is supplied with the repository. It checks the temporary
 register's reset value, separate and combined writes, an empty write, zero-length
 read, fixed-address multiple-byte access, and the effects of transaction end and
 hardware reset.
@@ -306,12 +288,191 @@ hardware reset.
 Start a fresh Renode session from the **Terminal**:
 
 ```sh
-renode --console --disable-gui --plain tests/stage1.resc
+renode --console --disable-gui --plain tests/transport.resc
 ```
 
-**Expected:** `PASS stage1: transport and register storage`, followed by Renode
+**Expected:** `PASS transport: register storage`, followed by Renode
 exiting. An `assert` stops the script if the response differs. If an error occurs,
 check the message before the prompt; the process exit code alone does not
 guarantee that the assertions passed.
 
-## 2. WHO_AM_I and STM32 firmware (work in progress)
+</details>
+
+<details>
+<summary>2. WHO_AM_I and STM32 firmware (work in progress)</summary>
+
+
+### Implement the register
+
+The first real register is `WHO_AM_I`, described in **DS11811 Rev. 9, section
+8.3**. It is located at sub-address `0x0F`, is read-only, and returns `0x44`.
+This is a good first register because it has no dependency on sensor sampling
+or configuration.
+
+In `models/LIS2DW12.cs`, replace the temporary `TRANSPORT_TEST` definition from
+section 1 with:
+
+```csharp
+// DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.
+RegistersCollection.DefineRegister(0x0F, 0x44)
+    .WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
+```
+
+The `FieldMode.Read` argument expresses the access rule from the datasheet:
+writes to this register are ignored by the model.
+
+### Validate the model
+
+`tests/who_am_i.resc` is supplied with the project. It checks the reset value,
+the register selection byte, and the read-only behavior. Run it from the
+Terminal:
+
+```sh
+renode --console --disable-gui --plain tests/who_am_i.resc
+```
+
+**Expected:** `PASS who_am_i: register behavior`.
+
+### Prepare the STM32 firmware
+
+The supplied project in `firmware/lis2dw12-demo` was generated with STM32CubeMX
+for **NUCLEO-F401RE / STM32F401RET6**. It uses HAL, I2C1 on PB6/PB7, and USART2
+on PA2/PA3. Open the project in STM32CubeIDE and build it.
+
+The firmware keeps the same project for all later sections. For this section,
+the relevant application code is limited to the following snippets from
+`Core/Src/main.c`.
+
+The 7-bit device address is shifted because the STM32 HAL expects the address
+in the I2C transaction format. The register sub-address remains `0x0F`:
+
+```c
+#define LIS2DW12_I2C_ADDRESS (0x18 << 1)
+#define LIS2DW12_WHO_AM_I 0x0F
+```
+
+The `ValidateWhoAmI()` function performs one memory read and reports the result
+through USART2:
+
+```c
+static void ValidateWhoAmI(void)
+{
+  uint8_t registerAddress = LIS2DW12_WHO_AM_I;
+  uint8_t deviceId = 0;
+  const uint8_t successMessage[] = "WHO_AM_I: 0x44\r\n";
+  const uint8_t errorMessage[] = "WHO_AM_I: ERROR\r\n";
+
+  if (HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, registerAddress,
+                       I2C_MEMADD_SIZE_8BIT, &deviceId, 1, 100) == HAL_OK
+      && deviceId == 0x44)
+  {
+    HAL_UART_Transmit(&huart2, (uint8_t *)successMessage,
+                      sizeof(successMessage) - 1, 100);
+  }
+  else
+  {
+    HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
+                      sizeof(errorMessage) - 1, 100);
+  }
+}
+```
+
+It is called once after CubeMX initializes GPIO, I2C1, and USART2:
+
+```c
+MX_GPIO_Init();
+MX_I2C1_Init();
+MX_USART2_UART_Init();
+
+ValidateWhoAmI();
+```
+
+The clock setup, HAL initialization, interrupt handlers, and generated driver
+code are supplied by CubeMX and are not specific to this register.
+
+You can build it with STM32CubeIDE, or use the supplied `tools/build_firmware.py`
+without an IDE. The script calls Arm GNU Toolchain directly and is usable on
+Windows or Linux. If `arm-none-eabi-gcc` is not on `PATH`, pass its full path:
+
+```powershell
+python tools\build_firmware.py --gcc "C:\path\to\arm-none-eabi-gcc.exe"
+```
+
+With the bundled STM32CubeIDE toolchain, the executable is under the IDE's
+`plugins/...gnu-tools-for-stm32.../tools/bin/` directory. The script uses the
+F401RE compiler define and linker script, then writes the ELF to
+`firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf`.
+
+### Connect the STM32
+
+Create `platforms/stm32_lis2dw12.repl`:
+
+<!-- tutorial-file: platforms/stm32_lis2dw12.repl -->
+```text
+using "platforms/cpus/stm32f4.repl"
+
+accel: Tutorial.LIS2DW12 @ i2c1 0x18
+```
+
+The platform reuses Renode's STM32F4 CPU description and attaches the model to
+the CPU's `i2c1` peripheral. `0x18` is the LIS2DW12 7-bit address when SA0 is
+low; it is different from the internal register address `0x0F`.
+
+Create `scripts/stm32_lis2dw12.resc`:
+
+<!-- tutorial-file: scripts/stm32_lis2dw12.resc -->
+```text
+include @models/LIS2DW12.cs
+mach create "lis2dw12-stm32"
+machine LoadPlatformDescription @platforms/stm32_lis2dw12.repl
+
+$bin?=@firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
+sysbus LoadELF $bin
+showAnalyzer usart2
+```
+
+Build the firmware before running this script. The ELF path is the default
+STM32CubeIDE Debug output path; update `$bin` if your IDE uses another output
+directory.
+
+Run it from the project root:
+
+```sh
+renode --console --plain scripts/stm32_lis2dw12.resc
+```
+
+Start the emulation with `start`. The UART analyzer should display:
+`WHO_AM_I: 0x44`.
+
+The same firmware can now be tested against the official
+`Sensors.LIS2DW12` model by changing only the peripheral type in the platform.
+That comparison will become cumulative as later register behavior is added.
+
+</details>
+
+<details>
+<summary>Limits and references</summary>
+
+
+We will try to cover every documented register, focusing on observable digital
+rules. Electrical characteristics, analog filtering, noise, power consumption,
+and physical performance are **not** simulated. Settings affecting only those
+properties may retain their written values without reproducing their effects.
+
+Each field will have an explicit policy: functional behavior, stored configuration,
+or fixed/injected data. Reset values, access permissions, command clearing, and
+status semantics must be considered separately; a blanket read/write echo can
+leave firmware waiting forever. Reserved addresses are not writable scratch storage.
+
+Register coverage does not imply a complete FIFO, gesture engine, temperature
+simulation, or sampling scheduler. Those groups will explicitly describe which
+digital behaviors are implemented and which are simplified or mocked. SPI remains
+a separate transport extension. Comparisons cover the demonstrated firmware and
+configurations, not arbitrary drivers.
+
+- [Preparatory PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
+- [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in section 6, register map in section 7, and registers in section 8.
+- [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
+- [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
+
+</details>

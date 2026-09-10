@@ -32,5 +32,5 @@ python "assert list(dev.Read(1)) == [0], 'reset left an active selection'"
 python "dev.Write(Array[Byte]([0x10]))"
 python "assert list(dev.Read(1)) == [0xA5], 'TRANSPORT_TEST reset failed'"
 
-echo "PASS stage1: transport and register storage"
+echo "PASS transport: register storage"
 quit
