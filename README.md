@@ -20,9 +20,16 @@ Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/reno
 It introduces C# models, REPL platforms, and the Monitor. Here we move on to
 register maps and transaction state.
 
+## Contents
 
-<details>
-<summary>1. Set up the project and I2C skeleton</summary>
+- [1. Set up the project and I2C skeleton](#1-set-up-the-project-and-i2c-skeleton)
+- [2. WHO_AM_I and STM32 firmware](#2-who_am_i-and-stm32-firmware)
+- [3. Multi-byte register access](#3-multi-byte-register-access)
+- [4. Minimal sensor initialization](#4-minimal-sensor-initialization-work-in-progress)
+- [Optional web view](#optional-web-view-vibe-coded)
+- [Limits and References](#limits-and-references)
+
+## 1. Set up the project and I2C skeleton
 
 
 You need **Renode 1.16.1** on your PATH.
@@ -333,10 +340,7 @@ exiting. An `assert` stops the script if the response differs. If an error occur
 check the message before the prompt; the process exit code alone does not
 guarantee that the assertions passed.
 
-</details>
-
-<details>
-<summary>2. WHO_AM_I and STM32 firmware</summary>
+## 2. WHO_AM_I and STM32 firmware
 
 
 ### Register behavior
@@ -376,8 +380,31 @@ renode --console --disable-gui --plain tests/who_am_i.resc
 The supplied project in `firmware/lis2dw12-demo` was generated with STM32CubeMX
 for **STM32L072CZYx**, the MCU family used by
 [Renode's official LIS2DW12 test](https://github.com/renode/renode/blob/v1.16.1/tests/peripherals/LIS2DW12.robot).
+
 It uses HAL, I2C1 on PB6/PB9, and USART2 on PA2/PA3. Open the project in
-STM32CubeIDE if you want to edit or rebuild it.
+STM32CubeIDE.
+
+The clock setup, HAL initialization, interrupt handlers, and generated driver
+code are supplied by CubeMX.
+
+> **Note:** The precompiled binary is already available at
+> `firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf`, so you do not need to
+> compile the firmware to follow this tutorial.
+>
+> If you edit the firmware source, you can rebuild it with STM32CubeIDE or use
+> the supplied `tools/build_firmware.py` without an IDE. The script calls Arm
+> GNU Toolchain directly and is usable on Windows or Linux. If
+> `arm-none-eabi-gcc` is not on `PATH`, pass its full path:
+>
+> ```powershell
+> python tools\build_firmware.py --gcc "C:\path\to\arm-none-eabi-gcc.exe"
+> ```
+>
+> With the bundled STM32CubeIDE toolchain, the executable is under the IDE's
+> `plugins/...gnu-tools-for-stm32.../tools/bin/` directory. The script uses the
+> `STM32L072xx` compiler define and linker script, then writes the ELF to the
+> same `firmware/lis2dw12-demo/Debug/` directory used by STM32CubeIDE.
+
 
 For this section, the relevant application code
 is limited to the following snippets from `Core/Src/main.c`.
@@ -426,27 +453,6 @@ MX_USART2_UART_Init();
 ValidateWhoAmI();
 ```
 
-The clock setup, HAL initialization, interrupt handlers, and generated driver
-code are supplied by CubeMX and are not specific to this register.
-
-> **Note:** The precompiled binary is already available at
-> `firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf`, so you do not need to
-> compile the firmware to follow this tutorial.
->
-> If you edit the firmware source, you can rebuild it with STM32CubeIDE or use
-> the supplied `tools/build_firmware.py` without an IDE. The script calls Arm
-> GNU Toolchain directly and is usable on Windows or Linux. If
-> `arm-none-eabi-gcc` is not on `PATH`, pass its full path:
->
-> ```powershell
-> python tools\build_firmware.py --gcc "C:\path\to\arm-none-eabi-gcc.exe"
-> ```
->
-> With the bundled STM32CubeIDE toolchain, the executable is under the IDE's
-> `plugins/...gnu-tools-for-stm32.../tools/bin/` directory. The script uses the
-> `STM32L072xx` compiler define and linker script, then writes the ELF to the
-> same `firmware/lis2dw12-demo/Debug/` directory used by STM32CubeIDE.
-
 ### Connect the STM32
 
 Create `platforms/stm32_lis2dw12.repl`:
@@ -490,10 +496,7 @@ Start the emulation with `start`.
 The `showAnalyzer usart2` command in the script opens a window for debugging UART2;
 As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
 
-</details>
-
-<details>
-<summary>3. Multi-byte register access</summary>
+## 3. Multi-byte register access
 
 
 ### IF_ADD_INC behavior
@@ -672,14 +675,9 @@ while this tutorial follows the datasheet rule for the demonstrated
 `CTRL1 -> CTRL2` burst. `tests/compare_models.resc` records the shared behavior
 and deliberate differences.
 
-</details>
+## 4. Minimal sensor initialization (work in progress)
 
-<details>
-<summary>4. Minimal sensor initialization (work in progress)</summary>
-</details>
-
-<details>
-<summary>Optional web view (vibe-coded)</summary>
+## Optional web view (vibe-coded)
 
 
 The supplied read-only panel displays each implemented register as hexadecimal
@@ -693,10 +691,7 @@ python tools/lab.py
 It opens [localhost:8000](http://127.0.0.1:8000). As later registers are
 implemented, they will be added to this same view. Stop it with `Ctrl+C`.
 
-</details>
-
-<details>
-<summary>Limits and References</summary>
+## Limits and References
 
 
 This tutorial implements the common polling path: device identification, basic
@@ -739,5 +734,3 @@ renode --console --disable-gui --plain tests/firmware_reference.resc
 
 **Expected:** `PASS reference firmware: I2C transactions complete; known
 auto-increment difference observed`.
-
-</details>
