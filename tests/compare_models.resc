@@ -18,5 +18,29 @@ python "print('custom WHO_AM_I: ' + str(customValue))"
 python "print('reference WHO_AM_I: ' + str(referenceValue))"
 python "assert customValue == referenceValue == [0x44], 'WHO_AM_I comparison failed'"
 
-echo "PASS compare: custom and reference WHO_AM_I"
+# The custom model follows the datasheet's CTRL2 reset value (0x04).
+# Renode 1.16.1's reference model returns 0x00, an intentional comparison note.
+python "custom.FinishTransmission(); reference.FinishTransmission()"
+python "custom.Write(Array[Byte]([0x20])); reference.Write(Array[Byte]([0x20]))"
+python "customValues = list(custom.Read(2)); referenceValues = list(reference.Read(2))"
+python "print('custom CTRL1/CTRL2 reset: ' + str(customValues))"
+python "print('reference CTRL1/CTRL2 reset: ' + str(referenceValues))"
+python "assert customValues == [0x00, 0x04], 'custom control reset mismatch'"
+python "assert referenceValues == [0x00, 0x00], 'unexpected reference control reset behavior'"
+
+# Disable auto-increment, then verify that a multi-byte write repeats CTRL1.
+python "custom.FinishTransmission(); reference.FinishTransmission()"
+python "custom.Write(Array[Byte]([0x21, 0x00])); reference.Write(Array[Byte]([0x21, 0x00]))"
+python "custom.FinishTransmission(); reference.FinishTransmission()"
+python "custom.Write(Array[Byte]([0x20, 0x12, 0x34])); reference.Write(Array[Byte]([0x20, 0x12, 0x34]))"
+python "custom.FinishTransmission(); reference.FinishTransmission()"
+python "custom.Write(Array[Byte]([0x20])); reference.Write(Array[Byte]([0x20]))"
+python "customValues = list(custom.Read(2)); referenceValues = list(reference.Read(2))"
+python "assert customValues == referenceValues == [0x34, 0x34], 'disabled IF_ADD_INC comparison failed'"
+
+# Restore the default so later cumulative checks start from normal burst access.
+python "custom.FinishTransmission(); reference.FinishTransmission()"
+python "custom.Write(Array[Byte]([0x21, 0x04])); reference.Write(Array[Byte]([0x21, 0x04]))"
+
+echo "PASS compare: custom and reference identity/control registers"
 quit

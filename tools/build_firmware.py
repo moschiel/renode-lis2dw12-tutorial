@@ -1,4 +1,4 @@
-"""Build the CubeMX-generated STM32F401RE firmware with Arm GNU Toolchain."""
+"""Build the CubeMX-generated STM32L072 firmware with Arm GNU Toolchain."""
 import argparse
 from pathlib import Path
 import shutil
@@ -24,8 +24,8 @@ def main():
 
     build = PROJECT / "Debug"
     build.mkdir(exist_ok=True)
-    hal = PROJECT / "Drivers" / "STM32F4xx_HAL_Driver"
-    device = PROJECT / "Drivers" / "CMSIS" / "Device" / "ST" / "STM32F4xx"
+    hal = PROJECT / "Drivers" / "STM32L0xx_HAL_Driver"
+    device = PROJECT / "Drivers" / "CMSIS" / "Device" / "ST" / "STM32L0xx"
     sources = [
         *sorted((PROJECT / "Core" / "Src").glob("*.c")),
         *sorted((PROJECT / "Core" / "Startup").glob("*.s")),
@@ -39,11 +39,9 @@ def main():
         PROJECT / "Drivers" / "CMSIS" / "Include",
     ]
     flags = [
-        "-mcpu=cortex-m4",
+        "-mcpu=cortex-m0plus",
         "-mthumb",
-        "-mfpu=fpv4-sp-d16",
-        "-mfloat-abi=hard",
-        "-DSTM32F401xE",
+        "-DSTM32L072xx",
         "-DUSE_HAL_DRIVER",
         "-Og",
         "-g3",
@@ -69,7 +67,7 @@ def main():
             str(gcc),
             *flags,
             *objects,
-            "-T" + str(PROJECT / "STM32F401RETX_FLASH.ld"),
+            "-T" + str(PROJECT / "STM32L072CZYX_FLASH.ld"),
             "--specs=nano.specs",
             "--specs=nosys.specs",
             "-Wl,--gc-sections",

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LIS2DW12 / Renode</title>
+<style>
+:root{--paper:#f3efe5;--ink:#17221c;--line:#9ea99e;--accent:#d14d32;--panel:#fffdf7}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#e2eadf,var(--paper) 55%);color:var(--ink);font-family:Georgia,serif;min-height:100vh;padding:36px}
+main{max-width:760px;margin:auto}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:12px}h1{font-size:clamp(25px,5vw,42px);margin:0}.status{font:12px Consolas,monospace;color:#52705e}
+.path{font:13px Consolas,monospace;margin:24px 0;color:#536157}.registers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.reg{background:var(--panel);border:1px solid var(--line);padding:18px;box-shadow:4px 4px 0 #c9d0c6}.reg span{display:block;font:12px Consolas,monospace;color:#647067}.reg strong{font:30px Consolas,monospace}.reg small{float:right;font:11px Consolas,monospace;color:var(--accent)}
+.terminal{margin-top:22px;background:#152019;color:#d7e5d7;border-left:5px solid var(--accent);padding:14px}.terminal label{font:11px Consolas,monospace;color:#91a595}.terminal pre{min-height:90px;white-space:pre-wrap;margin:10px 0 0;font:14px Consolas,monospace}@media(max-width:600px){body{padding:20px}.registers{grid-template-columns:1fr}}
+</style>
+<main>
+<header><h1>LIS2DW12</h1><span class="status" id="status">CONNECTING</span></header>
+<div class="path">STM32F401RE &rarr; I2C1 &rarr; 0x18</div>
+<section class="registers" id="registers"></section>
+<section class="terminal"><label>USART2</label><pre id="uart">Waiting for firmware...</pre></section>
+</main>
+<script>
+const labels={WHO_AM_I:'0x0F',CTRL1:'0x20',CTRL2:'0x21'};
+const hex=n=>'0x'+n.toString(16).toUpperCase().padStart(2,'0');
+async function update(){try{const r=await fetch('/api/state',{cache:'no-store'}),s=await r.json();if(!r.ok||s.error)throw Error(s.error||'request failed');document.querySelector('#status').textContent=s.seconds.toFixed(2)+' s';document.querySelector('#registers').innerHTML=Object.entries(s.registers).sort(([a],[b])=>parseInt(labels[a])-parseInt(labels[b])).map(([name,value])=>`<article class="reg"><small>${labels[name]}</small><span>${name}</span><strong>${hex(value)}</strong></article>`).join('');document.querySelector('#uart').textContent=s.uart.join('\n')||'Waiting for firmware...';}catch(e){document.querySelector('#status').textContent='DISCONNECTED';}}
+setInterval(update,200);update();
+</script>
+</html>

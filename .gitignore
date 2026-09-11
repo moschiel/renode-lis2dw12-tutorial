@@ -10,6 +10,7 @@ firmware/lis2dw12-demo/Debug/*
 !firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
 firmware/**/Release/
 firmware/**/.settings/
+firmware/old-lis2dw12-demo/
 
 # Keep authoring notes local; publish only the tutorial READMEs.
 *.md

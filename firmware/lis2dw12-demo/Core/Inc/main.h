@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f4xx_hal.h"
+#include "stm32l0xx_hal.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -57,20 +57,40 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define B1_Pin GPIO_PIN_13
-#define B1_GPIO_Port GPIOC
-#define USART_TX_Pin GPIO_PIN_2
-#define USART_TX_GPIO_Port GPIOA
-#define USART_RX_Pin GPIO_PIN_3
-#define USART_RX_GPIO_Port GPIOA
-#define LD2_Pin GPIO_PIN_5
-#define LD2_GPIO_Port GPIOA
-#define TMS_Pin GPIO_PIN_13
-#define TMS_GPIO_Port GPIOA
-#define TCK_Pin GPIO_PIN_14
-#define TCK_GPIO_Port GPIOA
-#define SWO_Pin GPIO_PIN_3
-#define SWO_GPIO_Port GPIOB
+#define PA15_RESERVED_Pin GPIO_PIN_15
+#define PA15_RESERVED_GPIO_Port GPIOA
+#define PB3_RESERVED_Pin GPIO_PIN_3
+#define PB3_RESERVED_GPIO_Port GPIOB
+#define PA12_RESERVED_Pin GPIO_PIN_12
+#define PA12_RESERVED_GPIO_Port GPIOA
+#define PB4_RESERVED_Pin GPIO_PIN_4
+#define PB4_RESERVED_GPIO_Port GPIOB
+#define PB4_RESERVED_EXTI_IRQn EXTI4_15_IRQn
+#define PC13_RESERVED_Pin GPIO_PIN_13
+#define PC13_RESERVED_GPIO_Port GPIOC
+#define PC13_RESERVED_EXTI_IRQn EXTI4_15_IRQn
+#define PC1_RESERVED_Pin GPIO_PIN_1
+#define PC1_RESERVED_GPIO_Port GPIOC
+#define PC0_RESERVED_Pin GPIO_PIN_0
+#define PC0_RESERVED_GPIO_Port GPIOC
+#define PB1_RESERVED_Pin GPIO_PIN_1
+#define PB1_RESERVED_GPIO_Port GPIOB
+#define PB1_RESERVED_EXTI_IRQn EXTI0_1_IRQn
+#define PA1_RESERVED_Pin GPIO_PIN_1
+#define PA1_RESERVED_GPIO_Port GPIOA
+#define PC2_RESERVED_Pin GPIO_PIN_2
+#define PC2_RESERVED_GPIO_Port GPIOC
+#define PA7_RESERVED_Pin GPIO_PIN_7
+#define PA7_RESERVED_GPIO_Port GPIOA
+#define STLINK_RX_Pin GPIO_PIN_2
+#define STLINK_RX_GPIO_Port GPIOA
+#define PB0_RESERVED_Pin GPIO_PIN_0
+#define PB0_RESERVED_GPIO_Port GPIOB
+#define PB0_RESERVED_EXTI_IRQn EXTI0_1_IRQn
+#define PA6_RESERVED_Pin GPIO_PIN_6
+#define PA6_RESERVED_GPIO_Port GPIOA
+#define STLINK_TX_Pin GPIO_PIN_3
+#define STLINK_TX_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

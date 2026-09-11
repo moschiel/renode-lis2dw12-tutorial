@@ -19,9 +19,8 @@ register maps and transaction state.
 
 > **Scope:** this tutorial focuses on functional digital modeling and firmware
 > integration. The GUI and utility scripts are 100% *vibe coded* support assets;
-> their implementation is outside the teaching scope. The future GUI will be
-> optional, for visualizing registers and UART output. See
-> [Limits and references](#limits-and-references) for the complete scope.
+> their implementation is outside the teaching scope.
+> See [Limits and References](#limits-and-references) for the complete scope.
 
 
 <details>
@@ -53,6 +52,9 @@ New-Item -ItemType Directory ..\my-lis2dw12\models, ..\my-lis2dw12\platforms, ..
 Copy-Item -Recurse tests ..\my-lis2dw12\tests
 Copy-Item -Recurse firmware ..\my-lis2dw12\firmware
 Copy-Item tools\build_firmware.py ..\my-lis2dw12\tools\build_firmware.py
+Copy-Item tools\lab.py, tools\renode_client.py ..\my-lis2dw12\tools
+Copy-Item scripts\bridge.py, scripts\lab.resc, scripts\uart_capture.py ..\my-lis2dw12\scripts
+Copy-Item -Recurse web ..\my-lis2dw12\web
 Set-Location ..\my-lis2dw12
 ```
 
@@ -64,6 +66,9 @@ mkdir ../my-lis2dw12/models ../my-lis2dw12/platforms ../my-lis2dw12/scripts ../m
 cp -R tests ../my-lis2dw12/tests
 cp -R firmware ../my-lis2dw12/firmware
 cp tools/build_firmware.py ../my-lis2dw12/tools/build_firmware.py
+cp tools/lab.py tools/renode_client.py ../my-lis2dw12/tools/
+cp scripts/bridge.py scripts/lab.resc scripts/uart_capture.py ../my-lis2dw12/scripts/
+cp -R web ../my-lis2dw12/web
 cd ../my-lis2dw12
 ```
 
@@ -98,9 +103,11 @@ uses `II2CPeripheral`; this tutorial we are going to implement I2C only.
 
 Create `models/LIS2DW12.cs`:
 
+<!-- tutorial-stage-model: stage1 -->
 ```csharp
 using System;
 using Antmicro.Renode.Core.Structure.Registers;
+using Antmicro.Renode.Logging;
 using Antmicro.Renode.Peripherals.I2C;
 
 namespace Antmicro.Renode.Peripherals.Tutorial
@@ -125,6 +132,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         {
             RegistersCollection.Reset();
             FinishTransmission();
+            this.Log(LogLevel.Debug, "Hardware reset restored register defaults.");
         }
 
         // II2CPeripheral contract: receives bytes sent by the I2C master.
@@ -132,6 +140,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         {
             if(data.Length == 0)
             {
+                this.Log(LogLevel.Noisy, "Ignoring an empty I2C write.");
                 return;
             }
 
@@ -143,10 +152,12 @@ namespace Antmicro.Renode.Peripherals.Tutorial
                 selectedRegister = data[0];
                 waitingForRegister = false;
                 offset = 1;
+                this.Log(LogLevel.Noisy, "I2C selected register 0x{0:X2}.", selectedRegister);
             }
 
             for(var i = offset; i < data.Length; i++)
             {
+                this.Log(LogLevel.Debug, "I2C write: register 0x{0:X2} <= 0x{1:X2}.", selectedRegister, data[i]);
                 RegistersCollection.Write(selectedRegister, data[i]);
                 // Address increment will be introduced with CTRL2.IF_ADD_INC.
             }
@@ -164,12 +175,14 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             if(waitingForRegister)
             {
                 // Same fallback as the reference model for an unselected read.
+                this.Log(LogLevel.Warning, "I2C read requested without selecting a register.");
                 return result;
             }
 
             for(var i = 0; i < count; i++)
             {
                 result[i] = RegistersCollection.Read(selectedRegister);
+                this.Log(LogLevel.Noisy, "I2C read: register 0x{0:X2} => 0x{1:X2}.", selectedRegister, result[i]);
             }
             return result;
         }
@@ -179,6 +192,15 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         {
             // Follow the reference model's transaction boundary.
             // Reset protocol state without resetting the register contents.
+            if(!waitingForRegister)
+            {
+                this.Log(LogLevel.Noisy, "I2C transaction finished.");
+            }
+            ClearSelection();
+        }
+
+        private void ClearSelection()
+        {
             selectedRegister = 0;
             waitingForRegister = true;
         }
@@ -190,9 +212,14 @@ namespace Antmicro.Renode.Peripherals.Tutorial
 ```
 
 `waitingForRegister` distinguishes a register-selection byte from data bytes.
-The first byte selects a location; subsequent bytes received before the end of
-the transaction are written to that location. `FinishTransmission` clears the
-selection, while `Reset` also restores the collection values.
+The first byte selects a location; subsequent bytes are written to it.
+`FinishTransmission` clears the selection at the I2C transaction boundary,
+while `Reset` also restores the collection values. Keeping the selection between
+`Write` and `Read` supports the repeated START used by a register read.
+
+`this.Log` uses Renode's logging system. State-changing writes and resets use
+`Debug`; frequent selections and reads use `Noisy`. Renode filters disabled
+levels before formatting these messages, and the arguments used here are cheap.
 
 We have not defined any sensor registers yet. Automatic increment will be added
 with `CTRL2.IF_ADD_INC` (section 8.5), so this stage does not represent the full
@@ -259,6 +286,15 @@ peripherals
   │
   └── accel (LIS2DW12)
 ```
+
+To inspect the model while developing it, enable `Debug` logs for this instance:
+
+```text
+logLevel 0 sysbus.accel
+```
+
+Use `logLevel -1 sysbus.accel` when you also need the more frequent register
+selection and read messages.
 
 You can write Python snippets in the **Monitor** to manually test the model's
 expected behavior:
@@ -340,8 +376,10 @@ renode --console --disable-gui --plain tests/who_am_i.resc
 ### Prepare the STM32 firmware
 
 The supplied project in `firmware/lis2dw12-demo` was generated with STM32CubeMX
-for **NUCLEO-F401RE / STM32F401RET6**. It uses HAL, I2C1 on PB6/PB7, and USART2
-on PA2/PA3. Open the project in STM32CubeIDE and build it.
+for **STM32L072CZYx**, the MCU family used by
+[Renode's official LIS2DW12 test](https://github.com/renode/renode/blob/v1.16.1/tests/peripherals/LIS2DW12.robot).
+It uses HAL, I2C1 on PB6/PB9, and USART2 on PA2/PA3. Open the project in
+STM32CubeIDE if you want to edit or rebuild it.
 
 For this section, the relevant application code
 is limited to the following snippets from `Core/Src/main.c`.
@@ -360,12 +398,11 @@ through USART2:
 ```c
 static void ValidateWhoAmI(void)
 {
-  uint8_t registerAddress = LIS2DW12_WHO_AM_I;
   uint8_t deviceId = 0;
   const uint8_t successMessage[] = "WHO_AM_I: 0x44\r\n";
   const uint8_t errorMessage[] = "WHO_AM_I: ERROR\r\n";
 
-  if (HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, registerAddress,
+  if (HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_WHO_AM_I,
                        I2C_MEMADD_SIZE_8BIT, &deviceId, 1, 100) == HAL_OK
       && deviceId == 0x44)
   {
@@ -385,6 +422,7 @@ It is called once after CubeMX initializes GPIO, I2C1, and USART2:
 ```c
 MX_GPIO_Init();
 MX_I2C1_Init();
+// Other CubeMX-generated peripheral initialization.
 MX_USART2_UART_Init();
 
 ValidateWhoAmI();
@@ -408,8 +446,8 @@ code are supplied by CubeMX and are not specific to this register.
 >
 > With the bundled STM32CubeIDE toolchain, the executable is under the IDE's
 > `plugins/...gnu-tools-for-stm32.../tools/bin/` directory. The script uses the
-> F401RE compiler define and linker script, then writes the ELF to the same
-> `firmware/lis2dw12-demo/Debug/` directory used by STM32CubeIDE.
+> `STM32L072xx` compiler define and linker script, then writes the ELF to the
+> same `firmware/lis2dw12-demo/Debug/` directory used by STM32CubeIDE.
 
 ### Connect the STM32
 
@@ -417,14 +455,15 @@ Create `platforms/stm32_lis2dw12.repl`:
 
 <!-- tutorial-file: platforms/stm32_lis2dw12.repl -->
 ```text
-using "platforms/cpus/stm32f4.repl"
+using "platforms/cpus/stm32l072.repl"
 
 accel: Tutorial.LIS2DW12 @ i2c1 0x18
 ```
 
-The platform reuses Renode's STM32F4 CPU description and attaches the model to
-the CPU's `i2c1` peripheral. `0x18` is the LIS2DW12 7-bit address when SA0 is
-low; it is different from the internal register address `0x0F`.
+The platform reuses Renode's STM32L072 CPU description and attaches the model
+to the CPU's `i2c1` peripheral. This is the platform used by Renode's official
+LIS2DW12 test. `0x18` is the LIS2DW12 7-bit address when SA0 is low; it is
+different from the internal register address `0x0F`.
 
 Create `scripts/stm32_lis2dw12.resc`:
 
@@ -456,11 +495,206 @@ As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
 </details>
 
 <details>
-<summary>3. CTRL1 and CTRL2.IF_ADD_INC (work in progress)</summary>
+<summary>3. CTRL1 and CTRL2.IF_ADD_INC</summary>
+
+
+### Register behavior
+
+`CTRL1` (`0x20`) is a read/write configuration byte for output data rate,
+operating mode, and low-power mode. It resets to `0x00` (power-down). This
+stage stores and returns the complete byte, but does not simulate its physical
+effects on rate, resolution, noise, or power. See **DS11811 Rev. 9, section 8.4,
+Tables 27-31**.
+
+`CTRL2` (`0x21`) resets to `0x04`. This stage implements only bit 2,
+`IF_ADD_INC`; the remaining fields will be added later. Sections **6.1.1 and
+8.5** specify that each additional byte accesses the next register when this
+bit is `1`, or repeats the selected register when it is `0`.
+
+### Define the control registers
+
+Add these definitions after `WHO_AM_I` in the constructor:
+
+```csharp
+// DS11811 Rev. 9, section 8.4: configuration is stored, while
+// physical ODR, power, noise and resolution effects are out of scope.
+RegistersCollection.DefineRegister(0x20, 0x00)
+    .WithValueField(0, 8, out control1, name: "CTRL1");
+// DS11811 Rev. 9, section 8.5: only IF_ADD_INC is modeled for now.
+RegistersCollection.DefineRegister(0x21, 0x04)
+    .WithReservedBits(0, 2)
+    .WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC")
+    .WithReservedBits(3, 5);
+```
+
+`WithValueField` retains all eight `CTRL1` bits. `WithFlag` gives the model a
+boolean field that both follows the `CTRL2` reset value and controls transport.
+Declare the fields near the end of the class:
+
+```csharp
+private IValueRegisterField control1;
+private IFlagRegisterField automaticAddressIncrement;
+```
+
+### Apply IF_ADD_INC to transfers
+
+After each `RegistersCollection.Write` and `RegistersCollection.Read`, call:
+
+```csharp
+IncrementSelectedRegister();
+```
+
+Then add the helper:
+
+```csharp
+private void IncrementSelectedRegister()
+{
+    if(automaticAddressIncrement.Value)
+    {
+        selectedRegister++;
+    }
+}
+```
+
+The increment happens once per data byte. Register selection itself does not
+advance the pointer.
+
+### Validate the model
+
+The supplied `tests/control_registers.resc` checks reset values, read/write
+storage, fixed-address bursts with `IF_ADD_INC=0`, incrementing bursts with
+`IF_ADD_INC=1`, and hardware reset. Run:
+
+```sh
+renode --console --disable-gui --plain tests/control_registers.resc
+```
+
+**Expected:** `PASS control_registers: storage and IF_ADD_INC`.
+
+### Extend the STM32 firmware
+
+The supplied firmware defines the two register addresses:
+
+```c
+#define LIS2DW12_I2C_ADDRESS (0x18 << 1)
+#define LIS2DW12_CTRL1 0x20
+#define LIS2DW12_CTRL2 0x21
+```
+
+`ValidateControlRegisters()` first disables increment and writes two bytes
+starting at `CTRL1`. Both target `CTRL1`, so its final value must be `0x34`.
+It then enables increment, writes `0x50` to `CTRL1` and `0x04` to `CTRL2` in
+one burst, and reads each register back:
+
+```c
+static void ValidateControlRegisters(void)
+{
+  uint8_t disabled = 0x00;
+  uint8_t enabled = 0x04;
+  uint8_t fixedAddressBurst[] = {0x12, 0x34};
+  uint8_t incrementingBurst[] = {0x50, 0x04};
+  uint8_t ctrl1 = 0;
+  uint8_t ctrl2 = 0;
+  const uint8_t successMessage[] = "CTRL1/CTRL2: PASS\r\n";
+  const uint8_t errorMessage[] = "CTRL1/CTRL2: ERROR\r\n";
+
+  // With IF_ADD_INC disabled, both bytes target CTRL1.
+  if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
+                        I2C_MEMADD_SIZE_8BIT, &disabled, 1, 100) != HAL_OK
+      || HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
+                           I2C_MEMADD_SIZE_8BIT, fixedAddressBurst, 2, 100) != HAL_OK
+      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
+                          I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) != HAL_OK
+      || ctrl1 != 0x34)
+  {
+    HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
+                      sizeof(errorMessage) - 1, 100);
+    return;
+  }
+
+  // Re-enable the default burst behavior and verify CTRL1 -> CTRL2 access.
+  if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
+                        I2C_MEMADD_SIZE_8BIT, &enabled, 1, 100) != HAL_OK
+      || HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
+                           I2C_MEMADD_SIZE_8BIT, incrementingBurst, 2, 100) != HAL_OK
+      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
+                          I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) != HAL_OK
+      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
+                          I2C_MEMADD_SIZE_8BIT, &ctrl2, 1, 100) != HAL_OK
+      || ctrl1 != 0x50 || ctrl2 != 0x04)
+  {
+    HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
+                      sizeof(errorMessage) - 1, 100);
+    return;
+  }
+
+  HAL_UART_Transmit(&huart2, (uint8_t *)successMessage,
+                    sizeof(successMessage) - 1, 100);
+}
+```
+
+Call it immediately after the identity check:
+
+```c
+ValidateWhoAmI();
+ValidateControlRegisters();
+```
+
+The firmware reads `CTRL1` and `CTRL2` separately after the burst so each value
+is explicit in the validation.
+
+Rebuild only if you changed the firmware source; the repository already
+contains the updated ELF. Run `scripts/stm32_lis2dw12.resc`, start the machine,
+and check USART2.
+
+**Expected UART:**
+
+```text
+WHO_AM_I: 0x44
+CTRL1/CTRL2: PASS
+```
+
+The supplied cumulative firmware check captures USART2 without opening an
+analyzer window:
+
+```sh
+renode --console --disable-gui --plain tests/firmware_custom.resc
+```
+
+**Expected:** `PASS firmware: WHO_AM_I and control registers`.
+
+The STM32L072 platform delivers each I2C transaction boundary to the peripheral,
+so the same firmware reads `WHO_AM_I` correctly from both models. The complete
+control-register result intentionally differs: Renode 1.16.1's official model
+limits address auto-increment to its output and temperature register windows,
+while this tutorial follows the datasheet rule for the demonstrated
+`CTRL1 -> CTRL2` burst. `tests/compare_models.resc` records the shared behavior
+and deliberate differences.
+
 </details>
 
 <details>
-<summary>Limits and references</summary>
+<summary>4. Complete CTRL2 commands and interface settings (work in progress)</summary>
+</details>
+
+<details>
+<summary>Optional web view (vibe-coded)</summary>
+
+
+The supplied read-only panel displays the implemented registers and the real
+USART2 output. It is a visualization aid, not part of the modeling lesson:
+
+```sh
+python tools/lab.py
+```
+
+It opens [localhost:8000](http://127.0.0.1:8000). As later registers are
+implemented, they will be added to this same view. Stop it with `Ctrl+C`.
+
+</details>
+
+<details>
+<summary>Limits and References</summary>
 
 
 We will try to cover every documented register, focusing on observable digital
@@ -493,5 +727,17 @@ cumulative checks against both `Tutorial.LIS2DW12` and Renode's official
 ```sh
 renode --console --disable-gui --plain tests/compare_models.resc
 ```
+
+`tests/firmware_reference.resc` also runs the supplied STM32L072 ELF against
+the official model. At the current stage it confirms successful I2C transaction
+boundaries and `WHO_AM_I`; it also records the known control-register
+auto-increment difference described in section 3.
+
+```sh
+renode --console --disable-gui --plain tests/firmware_reference.resc
+```
+
+**Expected:** `PASS reference firmware: I2C transactions complete; known
+control-register difference observed`.
 
 </details>

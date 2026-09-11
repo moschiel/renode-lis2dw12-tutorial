@@ -6,14 +6,22 @@ python "dev = monitor.Machine['sysbus.accel']"
 python "dev.Write(Array[Byte]([]))"
 python "dev.Write(Array[Byte]([0x10]))"
 python "assert list(dev.Read(1)) == [0xA5], 'initial selection failed'"
+python "dev.FinishTransmission()"
 
 # Data in a later Write call still belongs to the same transaction.
+python "dev.Write(Array[Byte]([0x10]))"
 python "dev.Write(Array[Byte]([0x12]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x10]))"
 python "assert list(dev.Read(1)) == [0x12], 'split write lost the selected register'"
+python "dev.FinishTransmission()"
 python "assert list(dev.Read(0)) == [], 'zero-length read mismatch'"
 
 # No auto-increment at this stage: each byte writes the selected cell.
+python "dev.Write(Array[Byte]([0x10]))"
 python "dev.Write(Array[Byte]([0x34, 0x56]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x10]))"
 python "assert list(dev.Read(3)) == [0x56, 0x56, 0x56], 'fixed-address access failed'"
 
 # Finishing a transaction clears protocol state, not register contents.
@@ -24,6 +32,8 @@ python "assert list(dev.Read(1)) == [0x56], 'transaction boundary reset the data
 # Address and data can also arrive together.
 python "dev.FinishTransmission()"
 python "dev.Write(Array[Byte]([0x10, 0x78]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x10]))"
 python "assert list(dev.Read(1)) == [0x78], 'combined write failed'"
 
 # Reset restores both the register values and the selection state.

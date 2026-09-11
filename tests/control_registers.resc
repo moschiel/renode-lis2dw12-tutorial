@@ -1,0 +1,33 @@
+include @scripts/accel_isolated.resc
+python "from System import Array, Byte"
+python "dev = monitor.Machine['sysbus.accel']"
+
+# DS11811 Rev. 9, Table 21 and sections 8.4/8.5: CTRL1 resets to
+# 0x00 and CTRL2 resets to 0x04, with IF_ADD_INC enabled at bit 2.
+python "dev.Write(Array[Byte]([0x20]))"
+python "assert list(dev.Read(2)) == [0x00, 0x04], 'control register reset values mismatch'"
+
+# With IF_ADD_INC disabled, every byte in a burst targets the same register.
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x21, 0x00]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x20, 0x12, 0x34]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x20]))"
+python "assert list(dev.Read(2)) == [0x34, 0x34], 'disabled IF_ADD_INC changed the address'"
+
+# Re-enable IF_ADD_INC. Consecutive data bytes now reach CTRL1 and CTRL2.
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x21, 0x04]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x20, 0x50, 0x04]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x20]))"
+python "assert list(dev.Read(2)) == [0x50, 0x04], 'enabled IF_ADD_INC did not advance the address'"
+
+python "dev.Reset()"
+python "dev.Write(Array[Byte]([0x20]))"
+python "assert list(dev.Read(2)) == [0x00, 0x04], 'hardware reset did not restore control defaults'"
+
+echo "PASS control_registers: storage and IF_ADD_INC"
+quit
