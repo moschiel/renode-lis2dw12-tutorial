@@ -1,27 +1,24 @@
 # Modeling an I2C Accelerometer in Renode: LIS2DW12
 
 The LIS2DW12 is a three-axis accelerometer with a register-based interface.
-Renode already provides a model of this device. This tutorial builds a smaller
-version to explain modeling decisions: interpreting transactions, defining
-registers, representing samples, and responding to firmware.
+Renode already provides a model of this device. In this tutorial, we build a
+smaller version from the datasheet and connect it to STM32 firmware.
 
 We use the [official model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs)
 as an architectural reference and for comparison. The tutorial reconstructs a
 possible development process; it does not describe the original authors' thoughts.
 Hardware behavior comes from the [ST DS11811 Rev. 9 datasheet](https://www.st.com/resource/en/datasheet/lis2dw12.pdf).
 
-The intended result is to run the same STM32 firmware against both models,
-comparing readings and UART output as each feature is added.
+The scope is a reduced but practical polling flow: identify the device, apply
+basic initialization, report data-ready status, and read XYZ samples. The same
+firmware is run against our model and Renode's official model for comparison.
+The GUI and utility scripts are 100% *vibe coded* support assets and are not
+part of the modeling lesson. See [Limits and References](#limits-and-references)
+for the detailed boundaries.
 
 Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
 It introduces C# models, REPL platforms, and the Monitor. Here we move on to
 register maps and transaction state.
-
-> **Scope:** this tutorial models the common polling path: identification, basic
-> initialization, data-ready status, and XYZ samples. The GUI and utility scripts
-> are 100% *vibe coded* support assets; their implementation is outside the
-> teaching scope.
-> See [Limits and References](#limits-and-references) for the complete scope.
 
 
 <details>
