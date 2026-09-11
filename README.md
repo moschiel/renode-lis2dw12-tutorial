@@ -17,9 +17,10 @@ Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/reno
 It introduces C# models, REPL platforms, and the Monitor. Here we move on to
 register maps and transaction state.
 
-> **Scope:** this tutorial focuses on functional digital modeling and firmware
-> integration. The GUI and utility scripts are 100% *vibe coded* support assets;
-> their implementation is outside the teaching scope.
+> **Scope:** this tutorial models the common polling path: identification, basic
+> initialization, data-ready status, and XYZ samples. The GUI and utility scripts
+> are 100% *vibe coded* support assets; their implementation is outside the
+> teaching scope.
 > See [Limits and References](#limits-and-references) for the complete scope.
 
 
@@ -495,41 +496,44 @@ As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
 </details>
 
 <details>
-<summary>3. CTRL1 and CTRL2.IF_ADD_INC</summary>
+<summary>3. Multi-byte register access</summary>
 
 
-### Register behavior
+### IF_ADD_INC behavior
 
-`CTRL1` (`0x20`) is a read/write configuration byte for output data rate,
-operating mode, and low-power mode. It resets to `0x00` (power-down). This
-stage stores and returns the complete byte, but does not simulate its physical
-effects on rate, resolution, noise, or power. See **DS11811 Rev. 9, section 8.4,
-Tables 27-31**.
+Sections **6.1.1 and 8.5** specify that each additional byte accesses the next
+register when `IF_ADD_INC` is `1`, or repeats the selected register when it is
+`0`. The bit is in `CTRL2` (`0x21`), which resets to `0x04`, so automatic
+increment starts enabled.
 
-`CTRL2` (`0x21`) resets to `0x04`. This stage implements only bit 2,
-`IF_ADD_INC`; the remaining fields will be added later. Sections **6.1.1 and
-8.5** specify that each additional byte accesses the next register when this
-bit is `1`, or repeats the selected register when it is `0`.
+`CTRL1` is temporary writable storage in this section only to make pointer
+movement observable. Its useful configuration fields are introduced when the
+firmware starts configuring sample acquisition.
 
 ### Define the control registers
 
 Add these definitions after `WHO_AM_I` in the constructor:
 
 ```csharp
-// DS11811 Rev. 9, section 8.4: configuration is stored, while
-// physical ODR, power, noise and resolution effects are out of scope.
+// Temporary neighboring storage used to observe IF_ADD_INC.
+// CTRL1 fields and behavior are introduced with sample generation.
 RegistersCollection.DefineRegister(0x20, 0x00)
     .WithValueField(0, 8, out control1, name: "CTRL1");
-// DS11811 Rev. 9, section 8.5: only IF_ADD_INC is modeled for now.
+// DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior.
+// Tagged fields document the remaining layout without simulating it.
 RegistersCollection.DefineRegister(0x21, 0x04)
-    .WithReservedBits(0, 2)
+    .WithTaggedFlag("SIM", 0)
+    .WithTaggedFlag("I2C_DISABLE", 1)
     .WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC")
-    .WithReservedBits(3, 5);
+    .WithTaggedFlag("BDU", 3)
+    .WithTaggedFlag("CS_PU_DISC", 4)
+    .WithReservedBits(5, 1)
+    .WithTaggedFlag("SOFT_RESET", 6)
+    .WithTaggedFlag("BOOT", 7);
 ```
 
-`WithValueField` retains all eight `CTRL1` bits. `WithFlag` gives the model a
-boolean field that both follows the `CTRL2` reset value and controls transport.
-Declare the fields near the end of the class:
+`WithTaggedFlag` preserves the documented register layout but does not attach
+behavior to those fields. Declare only the state needed by this section:
 
 ```csharp
 private IValueRegisterField control1;
@@ -561,15 +565,15 @@ advance the pointer.
 
 ### Validate the model
 
-The supplied `tests/control_registers.resc` checks reset values, read/write
+The supplied `tests/auto_increment.resc` checks reset values, read/write
 storage, fixed-address bursts with `IF_ADD_INC=0`, incrementing bursts with
 `IF_ADD_INC=1`, and hardware reset. Run:
 
 ```sh
-renode --console --disable-gui --plain tests/control_registers.resc
+renode --console --disable-gui --plain tests/auto_increment.resc
 ```
 
-**Expected:** `PASS control_registers: storage and IF_ADD_INC`.
+**Expected:** `PASS auto_increment: IF_ADD_INC behavior`.
 
 ### Extend the STM32 firmware
 
@@ -581,13 +585,13 @@ The supplied firmware defines the two register addresses:
 #define LIS2DW12_CTRL2 0x21
 ```
 
-`ValidateControlRegisters()` first disables increment and writes two bytes
+`ValidateAutoIncrement()` first disables increment and writes two bytes
 starting at `CTRL1`. Both target `CTRL1`, so its final value must be `0x34`.
 It then enables increment, writes `0x50` to `CTRL1` and `0x04` to `CTRL2` in
 one burst, and reads each register back:
 
 ```c
-static void ValidateControlRegisters(void)
+static void ValidateAutoIncrement(void)
 {
   uint8_t disabled = 0x00;
   uint8_t enabled = 0x04;
@@ -595,8 +599,8 @@ static void ValidateControlRegisters(void)
   uint8_t incrementingBurst[] = {0x50, 0x04};
   uint8_t ctrl1 = 0;
   uint8_t ctrl2 = 0;
-  const uint8_t successMessage[] = "CTRL1/CTRL2: PASS\r\n";
-  const uint8_t errorMessage[] = "CTRL1/CTRL2: ERROR\r\n";
+  const uint8_t successMessage[] = "IF_ADD_INC: PASS\r\n";
+  const uint8_t errorMessage[] = "IF_ADD_INC: ERROR\r\n";
 
   // With IF_ADD_INC disabled, both bytes target CTRL1.
   if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
@@ -637,7 +641,7 @@ Call it immediately after the identity check:
 
 ```c
 ValidateWhoAmI();
-ValidateControlRegisters();
+ValidateAutoIncrement();
 ```
 
 The firmware reads `CTRL1` and `CTRL2` separately after the burst so each value
@@ -651,7 +655,7 @@ and check USART2.
 
 ```text
 WHO_AM_I: 0x44
-CTRL1/CTRL2: PASS
+IF_ADD_INC: PASS
 ```
 
 The supplied cumulative firmware check captures USART2 without opening an
@@ -661,11 +665,11 @@ analyzer window:
 renode --console --disable-gui --plain tests/firmware_custom.resc
 ```
 
-**Expected:** `PASS firmware: WHO_AM_I and control registers`.
+**Expected:** `PASS firmware: WHO_AM_I and IF_ADD_INC`.
 
 The STM32L072 platform delivers each I2C transaction boundary to the peripheral,
-so the same firmware reads `WHO_AM_I` correctly from both models. The complete
-control-register result intentionally differs: Renode 1.16.1's official model
+so the same firmware reads `WHO_AM_I` correctly from both models. The
+auto-increment result intentionally differs: Renode 1.16.1's official model
 limits address auto-increment to its output and temperature register windows,
 while this tutorial follows the datasheet rule for the demonstrated
 `CTRL1 -> CTRL2` burst. `tests/compare_models.resc` records the shared behavior
@@ -674,15 +678,16 @@ and deliberate differences.
 </details>
 
 <details>
-<summary>4. Complete CTRL2 commands and interface settings (work in progress)</summary>
+<summary>4. Minimal sensor initialization (work in progress)</summary>
 </details>
 
 <details>
 <summary>Optional web view (vibe-coded)</summary>
 
 
-The supplied read-only panel displays the implemented registers and the real
-USART2 output. It is a visualization aid, not part of the modeling lesson:
+The supplied read-only panel displays each implemented register as hexadecimal
+and binary, decodes its named fields, and shows the real USART2 output. It is a
+visualization aid, not part of the modeling lesson:
 
 ```sh
 python tools/lab.py
@@ -697,21 +702,19 @@ implemented, they will be added to this same view. Stop it with `Ctrl+C`.
 <summary>Limits and References</summary>
 
 
-We will try to cover every documented register, focusing on observable digital
-rules. Electrical characteristics, analog filtering, noise, power consumption,
-and physical performance are **not** simulated. Settings affecting only those
-properties may retain their written values without reproducing their effects.
+This tutorial implements the common polling path: device identification, basic
+initialization, data-ready status, and XYZ sample reads. Configuration affects
+the model only when the demonstrated firmware observes that effect. Other fields
+may be tagged, stored, or return a documented default without a dedicated test.
 
-Each field will have an explicit policy: functional behavior, stored configuration,
-or fixed/injected data. Reset values, access permissions, command clearing, and
-status semantics must be considered separately; a blanket read/write echo can
-leave firmware waiting forever. Reserved addresses are not writable scratch storage.
+Electrical characteristics, analog filtering, noise, power consumption, and
+exact physical performance are not simulated. FIFO, tap, free-fall, orientation,
+wake-up, self-test, and temperature features are outside this tutorial. SPI also
+remains outside the transport scope.
 
-Register coverage does not imply a complete FIFO, gesture engine, temperature
-simulation, or sampling scheduler. Those groups will explicitly describe which
-digital behaviors are implemented and which are simplified or mocked. SPI remains
-a separate transport extension. Comparisons cover the demonstrated firmware and
-configurations, not arbitrary drivers.
+The result is a teaching model for representative Renode patterns, not a complete
+replacement for the device. Comparisons cover the demonstrated firmware and
+configurations, not arbitrary LIS2DW12 drivers.
 
 - [Preparatory PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
 - [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in section 6, register map in section 7, and registers in section 8.
@@ -738,6 +741,6 @@ renode --console --disable-gui --plain tests/firmware_reference.resc
 ```
 
 **Expected:** `PASS reference firmware: I2C transactions complete; known
-control-register difference observed`.
+auto-increment difference observed`.
 
 </details>

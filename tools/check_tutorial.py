@@ -7,6 +7,9 @@ import subprocess
 import sys
 import tempfile
 
+# Exemplo de comando para parar em um certo ponto do tutorial
+# python tools\check_tutorial.py --workspace ..\my-lis2dw12 --stage 2 (vai parar na secao 2)
+
 ROOT = Path(__file__).resolve().parents[1]
 BLOCK = re.compile(
     r"<!-- tutorial-file: ([^>]+) -->\s*\n"
@@ -20,11 +23,12 @@ CHECKS = [
     ("tests/transport.resc", "PASS transport: register storage", "stage1"),
     ("tests/who_am_i.resc", "PASS who_am_i: register behavior", "stage2"),
     ("tests/reference.resc", "PASS reference: WHO_AM_I baseline", "stage2"),
-    ("tests/control_registers.resc", "PASS control_registers: storage and IF_ADD_INC", "stage3"),
-    ("tests/compare_models.resc", "PASS compare: custom and reference identity/control registers", "stage3"),
-    ("tests/firmware_custom.resc", "PASS firmware: WHO_AM_I and control registers", "stage3"),
-    ("tests/firmware_reference.resc", "PASS reference firmware: I2C transactions complete; known control-register difference observed", "stage3"),
+    ("tests/auto_increment.resc", "PASS auto_increment: IF_ADD_INC behavior", "stage3"),
+    ("tests/compare_models.resc", "PASS compare: custom and reference identity/auto-increment", "stage3"),
+    ("tests/firmware_custom.resc", "PASS firmware: WHO_AM_I and IF_ADD_INC", "stage3"),
+    ("tests/firmware_reference.resc", "PASS reference firmware: I2C transactions complete; known auto-increment difference observed", "stage3"),
 ]
+STAGE_ORDER = {"stage1": 1, "stage2": 2, "stage3": 3}
 
 
 def materialize(destination):
@@ -86,8 +90,10 @@ def write_model_for_stage(destination, stage):
     target.write_text(source, encoding="utf-8")
 
 
-def check(renode, destination):
+def check(renode, destination, final_stage):
     for index, (script, marker, stage) in enumerate(CHECKS):
+        if STAGE_ORDER[stage] > final_stage:
+            continue
         write_model_for_stage(destination, stage)
         command = [
             renode, "--config", str(destination / ("renode-" + str(index) + ".config")),
@@ -109,6 +115,26 @@ def check(renode, destination):
             raise RuntimeError(script + " failed:\n" + result.stdout)
         print(marker, flush=True)
 
+    write_model_for_stage(destination, "stage" + str(final_stage))
+
+
+def recreate_workspace(path):
+    destination = path.expanduser().resolve()
+    home = Path.home().resolve()
+    filesystem_root = Path(destination.anchor).resolve()
+
+    if destination in (ROOT.resolve(), home, filesystem_root):
+        raise RuntimeError("Refusing to clear unsafe workspace: " + str(destination))
+    if ROOT.resolve().is_relative_to(destination):
+        raise RuntimeError("Workspace cannot contain the tutorial repository: " + str(destination))
+
+    if destination.exists():
+        if not destination.is_dir():
+            raise RuntimeError("Workspace is not a directory: " + str(destination))
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True)
+    return destination
+
 
 def check_gui(renode):
     from renode_client import Renode
@@ -120,30 +146,50 @@ def check_gui(renode):
             "WHO_AM_I": 0x44, "CTRL1": 0x50, "CTRL2": 0x04,
         }, state
         assert state["uart"] == [
-            "WHO_AM_I: 0x44", "CTRL1/CTRL2: PASS",
+            "WHO_AM_I: 0x44", "IF_ADD_INC: PASS",
         ], state
     page = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-    assert "WHO_AM_I" in page and "CTRL1" in page and "CTRL2" in page
+    assert all(label in page for label in (
+        "STM32L072", "WHO_AM_I", "CTRL1", "CTRL2", "ODR", "MODE",
+        "LP_MODE", "IF_ADD_INC", "SOFT_RESET", "BOOT",
+    ))
     print("PASS GUI support: register snapshot and firmware UART", flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--renode", default="renode", help="Renode executable")
+    parser.add_argument(
+        "--workspace", type=Path,
+        help="Persistent destination to clear, reconstruct, validate, and keep",
+    )
+    parser.add_argument(
+        "--stage", type=int, choices=range(1, 4), default=3,
+        help="Last tutorial stage to materialize and validate (default: 3)",
+    )
     args = parser.parse_args()
     executable = shutil.which(args.renode)
     if executable is None:
         parser.error("Renode not found: " + args.renode)
     try:
-        with tempfile.TemporaryDirectory(prefix="lis2dw12-tutorial-") as temporary:
-            destination = Path(temporary)
+        if args.workspace is not None:
+            destination = recreate_workspace(args.workspace)
             materialize(destination)
-            check(executable, destination)
-        check_gui(executable)
+            check(executable, destination, args.stage)
+            print("PASS workspace kept at:", destination, flush=True)
+        else:
+            with tempfile.TemporaryDirectory(prefix="lis2dw12-tutorial-") as temporary:
+                destination = Path(temporary)
+                materialize(destination)
+                check(executable, destination, args.stage)
+        if args.stage == 3:
+            check_gui(executable)
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         print("FAIL:", error, file=sys.stderr)
         return 1
-    print("PASS tutorial: stages 1-3 and optional GUI")
+    scope = "stage 1" if args.stage == 1 else "stages 1-" + str(args.stage)
+    print("PASS tutorial: " + scope
+          + (" and optional GUI" if args.stage == 3 else ""))
     return 0
 
 

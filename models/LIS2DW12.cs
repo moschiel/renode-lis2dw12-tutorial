@@ -14,15 +14,22 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             // DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.
             RegistersCollection.DefineRegister(0x0F, 0x44)
                 .WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
-            // DS11811 Rev. 9, section 8.4: configuration is stored, while
-            // physical ODR, power, noise and resolution effects are out of scope.
+            // Temporary neighboring storage used to observe IF_ADD_INC.
+            // CTRL1 fields and behavior are introduced with sample generation.
             RegistersCollection.DefineRegister(0x20, 0x00)
                 .WithValueField(0, 8, out control1, name: "CTRL1");
-            // DS11811 Rev. 9, section 8.5: only IF_ADD_INC is modeled for now.
+            // DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior.
+            // Tagged fields preserve the documented layout without simulating
+            // features that are outside this tutorial's common polling path.
             RegistersCollection.DefineRegister(0x21, 0x04)
-                .WithReservedBits(0, 2)
+                .WithTaggedFlag("SIM", 0)
+                .WithTaggedFlag("I2C_DISABLE", 1)
                 .WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC")
-                .WithReservedBits(3, 5);
+                .WithTaggedFlag("BDU", 3)
+                .WithTaggedFlag("CS_PU_DISC", 4)
+                .WithReservedBits(5, 1)
+                .WithTaggedFlag("SOFT_RESET", 6)
+                .WithTaggedFlag("BOOT", 7);
             Reset();
         }
 

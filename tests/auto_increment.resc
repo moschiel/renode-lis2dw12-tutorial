@@ -29,5 +29,5 @@ python "dev.Reset()"
 python "dev.Write(Array[Byte]([0x20]))"
 python "assert list(dev.Read(2)) == [0x00, 0x04], 'hardware reset did not restore control defaults'"
 
-echo "PASS control_registers: storage and IF_ADD_INC"
+echo "PASS auto_increment: IF_ADD_INC behavior"
 quit

@@ -42,5 +42,5 @@ python "assert customValues == referenceValues == [0x34, 0x34], 'disabled IF_ADD
 python "custom.FinishTransmission(); reference.FinishTransmission()"
 python "custom.Write(Array[Byte]([0x21, 0x04])); reference.Write(Array[Byte]([0x21, 0x04]))"
 
-echo "PASS compare: custom and reference identity/control registers"
+echo "PASS compare: custom and reference identity/auto-increment"
 quit

@@ -4,5 +4,5 @@ machine LoadPlatformDescriptionFromString "accel: Sensors.LIS2DW12 @ i2c1 0x18"
 sysbus LoadELF @firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
 include @scripts/uart_capture.py
 emulation RunFor "0.100"
-assert_reference_control_uart
+assert_reference_auto_increment_uart
 quit

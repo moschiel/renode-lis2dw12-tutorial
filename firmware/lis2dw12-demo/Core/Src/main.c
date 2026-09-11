@@ -91,7 +91,7 @@ static void ValidateWhoAmI(void)
   }
 }
 
-static void ValidateControlRegisters(void)
+static void ValidateAutoIncrement(void)
 {
   uint8_t disabled = 0x00;
   uint8_t enabled = 0x04;
@@ -99,8 +99,8 @@ static void ValidateControlRegisters(void)
   uint8_t incrementingBurst[] = {0x50, 0x04};
   uint8_t ctrl1 = 0;
   uint8_t ctrl2 = 0;
-  const uint8_t successMessage[] = "CTRL1/CTRL2: PASS\r\n";
-  const uint8_t errorMessage[] = "CTRL1/CTRL2: ERROR\r\n";
+  const uint8_t successMessage[] = "IF_ADD_INC: PASS\r\n";
+  const uint8_t errorMessage[] = "IF_ADD_INC: ERROR\r\n";
 
   // With IF_ADD_INC disabled, both bytes target CTRL1.
   if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
@@ -174,7 +174,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   ValidateWhoAmI();
-  ValidateControlRegisters();
+  ValidateAutoIncrement();
 
   /* USER CODE END 2 */
 
