@@ -318,8 +318,7 @@ value of `TRANSPORT_TEST`. Enter `quit` when finished.
 This demonstrates direct, interactive testing through the Monitor.
 
 From this point onward, the tutorial uses supplied `.resc` scripts for validation, therefore there is no need to type direclty in the monitor the testing instructions.
-The `.resc` scritps are repeatable, document the expected behavior in comments, and will grow
-with each stage.
+The `.resc` scritps are repeatable, document the expected behavior in comments.
 Take a look at the test files to understand the syntax used to write Renode tests.
 
 ### Run the stage 1 validation
@@ -510,6 +509,31 @@ increment starts enabled.
 movement observable. Its useful configuration fields are introduced when the
 firmware starts configuring sample acquisition.
 
+### Visualize the behavior
+
+Each path below is one I2C write beginning with `SUB = 0x20`, which selects
+`CTRL1`. `IF_ADD_INC` determines where the second data byte is written:
+
+```mermaid
+flowchart LR
+    subgraph disabled["IF_ADD_INC = 0"]
+        direction TB
+        D0["SUB 0x20<br/>select CTRL1"] --> D1["data 0x12<br/>write CTRL1"]
+        D1 -->|"pointer stays at 0x20"| D2["data 0x34<br/>write CTRL1"]
+    end
+
+    subgraph enabled["IF_ADD_INC = 1"]
+        direction TB
+        E0["SUB 0x20<br/>select CTRL1"] --> E1["data 0x50<br/>write CTRL1"]
+        E1 -->|"pointer advances to 0x21"| E2["data 0x04<br/>write CTRL2"]
+    end
+
+    disabled ~~~ enabled
+```
+
+The same pointer rule applies to multi-byte reads: disabled repeats the selected
+register, while enabled reads consecutive registers.
+
 ### Define the control registers
 
 Add these definitions after `WHO_AM_I` in the constructor:
@@ -658,7 +682,7 @@ WHO_AM_I: 0x44
 IF_ADD_INC: PASS
 ```
 
-The supplied cumulative firmware check captures USART2 without opening an
+The supplied firmware check captures USART2 without opening an
 analyzer window:
 
 ```sh
