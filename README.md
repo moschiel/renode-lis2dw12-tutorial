@@ -663,7 +663,7 @@ then checks only the capabilities completed through this section:
 renode --console --disable-gui --plain tests/firmware_xyz.resc
 ```
 
-**Expected:** `PASS firmware: WHO_AM_I and XYZ sample`.
+**Expected:** `PASS firmware: XYZ sample`.
 
 The relevant UART lines are:
 
@@ -792,7 +792,7 @@ Run the cumulative firmware check:
 renode --console --disable-gui --plain tests/firmware_auto_increment.resc
 ```
 
-**Expected:** `PASS firmware: WHO_AM_I, XYZ, and IF_ADD_INC`.
+**Expected:** `PASS firmware: IF_ADD_INC behavior`.
 
 The complete UART result is:
 

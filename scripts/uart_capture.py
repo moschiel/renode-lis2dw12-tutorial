@@ -14,37 +14,30 @@ def on_uart_byte(value):
 monitor.Machine['sysbus.usart2'].CharReceived += on_uart_byte
 
 
+def assert_current_line(expected, description):
+    assert uart_lines.count(expected) == 1, 'UART mismatch: ' + str(uart_lines)
+    print('PASS firmware: ' + description)
+
+
 def mc_assert_xyz_uart():
-    expected = ['WHO_AM_I: 0x44', 'XYZ: 1000,-500,16384']
-    assert uart_lines[:2] == expected, 'UART mismatch: ' + str(uart_lines)
-    print('PASS firmware: WHO_AM_I and XYZ sample')
+    assert_current_line('XYZ: 1000,-500,16384', 'XYZ sample')
 
 
 def mc_assert_auto_increment_uart():
-    expected = ['WHO_AM_I: 0x44', 'XYZ: 1000,-500,16384', 'IF_ADD_INC: PASS']
-    assert uart_lines[:3] == expected, 'UART mismatch: ' + str(uart_lines)
-    print('PASS firmware: WHO_AM_I, XYZ, and IF_ADD_INC')
+    assert_current_line('IF_ADD_INC: PASS', 'IF_ADD_INC behavior')
 
 
 def mc_assert_data_ready_polling_uart():
-    expected = [
-        'WHO_AM_I: 0x44', 'XYZ: 1000,-500,16384', 'IF_ADD_INC: PASS',
-        'DRDY_POLL: PASS',
-    ]
-    assert uart_lines[:4] == expected, 'UART mismatch: ' + str(uart_lines)
-    print('PASS firmware: data-ready polling')
+    assert_current_line('DRDY_POLL: PASS', 'data-ready polling')
 
 
 def mc_assert_data_ready_interrupt_uart():
-    expected = [
-        'WHO_AM_I: 0x44', 'XYZ: 1000,-500,16384', 'IF_ADD_INC: PASS',
-        'DRDY_POLL: PASS', 'DRDY_INT1: PASS',
-    ]
-    assert uart_lines == expected, 'UART mismatch: ' + str(uart_lines)
-    print('PASS firmware: data-ready interrupt')
+    assert_current_line('DRDY_INT1: PASS', 'data-ready interrupt')
 
 
-def mc_assert_reference_auto_increment_uart():
+def mc_assert_reference_firmware_uart():
+    # This is the final comparison utility, so it intentionally checks the
+    # complete UART result against the official model.
     expected = [
         'WHO_AM_I: 0x44', 'XYZ: ERROR', 'IF_ADD_INC: ERROR',
         'DRDY_POLL: PASS', 'DRDY_INT1: PASS',

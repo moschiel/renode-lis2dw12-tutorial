@@ -3,5 +3,5 @@ machine LoadPlatformDescription @platforms/stm32_lis2dw12_reference.repl
 sysbus LoadELF @firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
 include @scripts/uart_capture.py
 emulation RunFor "0.100"
-assert_reference_auto_increment_uart
+assert_reference_firmware_uart
 quit
