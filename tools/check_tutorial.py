@@ -100,13 +100,11 @@ def write_model_for_stage(destination, stage):
         if stage == "stage2":
             temporary = (
                 "// Temporary stage-1 storage. It will be replaced by WHO_AM_I.\n"
-                "            RegistersCollection.DefineRegister(0x10, 0xA5)\n"
-                "                .WithValueField(0, 8, name: \"TRANSPORT_TEST\");"
+                "            RegistersCollection.DefineRegister(0x10, 0xA5).WithValueField(0, 8, name: \"TRANSPORT_TEST\");"
             )
             identity = (
                 "// DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.\n"
-                "            RegistersCollection.DefineRegister(0x0F, 0x44)\n"
-                "                .WithValueField(0, 8, FieldMode.Read, name: \"WHO_AM_I\");"
+                "            RegistersCollection.DefineRegister(0x0F, 0x44).WithValueField(0, 8, FieldMode.Read, name: \"WHO_AM_I\");"
             )
             if temporary not in source:
                 raise RuntimeError("Temporary stage-1 register block changed")

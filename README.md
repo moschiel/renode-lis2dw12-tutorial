@@ -142,8 +142,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         {
             RegistersCollection = new ByteRegisterCollection(this);
             // Temporary stage-1 storage. It will be replaced by WHO_AM_I.
-            RegistersCollection.DefineRegister(0x10, 0xA5)
-                .WithValueField(0, 8, name: "TRANSPORT_TEST");
+            RegistersCollection.DefineRegister(0x10, 0xA5).WithValueField(0, 8, name: "TRANSPORT_TEST");
             Reset();
         }
 
@@ -520,10 +519,8 @@ The LIS2DW12 exposes each axis through two consecutive read-only registers.
 Datasheet sections **8.12 through 8.17** describe the low byte followed by the high byte;
 together they form a signed 16-bit value in two's complement.
 
-At reset, all six registers contain zero. `CTRL1.ODR` also resets to power-down,
-so these values are readable but do not represent a new physical conversion.
-This tutorial injects deterministic raw register data directly into the model;
-sample acquisition behavior will be introduced later.
+At reset, all six registers contain zero.
+This tutorial injects deterministic raw register data directly into the model.
 
 | Axis | Raw value | Low byte | High byte |
 | --- | ---: | ---: | ---: |
@@ -589,14 +586,6 @@ private IValueRegisterField outputYLow;
 private IValueRegisterField outputYHigh;
 private IValueRegisterField outputZLow;
 private IValueRegisterField outputZHigh;
-```
-
-For this stage, advance `selectedRegister` after every register read and write.
-This reproduces the device's reset behavior for consecutive accesses; tutorial
-section 4 makes it configurable:
-
-```csharp
-selectedRegister++;
 ```
 
 ### 3.3 Validate the model
