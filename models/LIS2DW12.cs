@@ -11,17 +11,16 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         public LIS2DW12()
         {
             RegistersCollection = new ByteRegisterCollection(this);
-            // DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.
-            RegistersCollection.DefineRegister(0x0F, 0x44)
-                .WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
+            // DS11811 Rev. 9, datasheet section 8.3: WHO_AM_I is read-only and resets to 0x44.
+            RegistersCollection.DefineRegister(0x0F, 0x44).WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
             // DS11811 Rev. 9, sections 8.12-8.17: each axis is exposed as a
             // little-endian, signed 16-bit value split across two registers.
-            DefineOutputRegister(0x28, out outputXLow, "OUT_X_L");
-            DefineOutputRegister(0x29, out outputXHigh, "OUT_X_H");
-            DefineOutputRegister(0x2A, out outputYLow, "OUT_Y_L");
-            DefineOutputRegister(0x2B, out outputYHigh, "OUT_Y_H");
-            DefineOutputRegister(0x2C, out outputZLow, "OUT_Z_L");
-            DefineOutputRegister(0x2D, out outputZHigh, "OUT_Z_H");
+            RegistersCollection.DefineRegister(0x28, 0x00).WithValueField(0, 8, out outputXLow, FieldMode.Read, name: "OUT_X_L");
+            RegistersCollection.DefineRegister(0x29, 0x00).WithValueField(0, 8, out outputXHigh, FieldMode.Read, name: "OUT_X_H");
+            RegistersCollection.DefineRegister(0x2A, 0x00).WithValueField(0, 8, out outputYLow, FieldMode.Read, name: "OUT_Y_L");
+            RegistersCollection.DefineRegister(0x2B, 0x00).WithValueField(0, 8, out outputYHigh, FieldMode.Read, name: "OUT_Y_H");
+            RegistersCollection.DefineRegister(0x2C, 0x00).WithValueField(0, 8, out outputZLow, FieldMode.Read, name: "OUT_Z_L");
+            RegistersCollection.DefineRegister(0x2D, 0x00).WithValueField(0, 8, out outputZHigh, FieldMode.Read, name: "OUT_Z_H");
             // DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior.
             // Tagged fields preserve the documented layout without simulating
             // features that are outside this tutorial's common polling path.
@@ -136,12 +135,6 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             {
                 selectedRegister++;
             }
-        }
-
-        private void DefineOutputRegister(byte address, out IValueRegisterField field, string name)
-        {
-            RegistersCollection.DefineRegister(address, 0x00)
-                .WithValueField(0, 8, out field, FieldMode.Read, name: name);
         }
 
         private static void SetAxis(int value, IValueRegisterField low, IValueRegisterField high, string parameterName)
