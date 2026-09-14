@@ -28,7 +28,8 @@ python "assert customValues == referenceValues == [0, 0, 0, 0, 0, 0], 'XYZ reset
 
 # Our teaching model accepts raw register values directly. The official model
 # accepts physical acceleration values and converts them according to its mode.
-python "custom.FinishTransmission(); custom.SetSample(1000, -500, 16384)"
+python "custom.FinishTransmission(); custom.Write(Array[Byte]([0x20, 0x20])); custom.FinishTransmission()"
+python "custom.SetSample(1000, -500, 16384)"
 python "custom.Write(Array[Byte]([0x28]))"
 python "assert list(custom.Read(6)) == [0xE8, 0x03, 0x0C, 0xFE, 0x00, 0x40], 'custom XYZ stimulus mismatch'"
 

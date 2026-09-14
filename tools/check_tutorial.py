@@ -28,9 +28,9 @@ CHECKS = [
     ("tests/firmware_xyz.resc", "PASS firmware: XYZ sample", "stage3"),
     ("tests/auto_increment.resc", "PASS auto_increment: IF_ADD_INC behavior", "stage4"),
     ("tests/firmware_auto_increment.resc", "PASS firmware: IF_ADD_INC behavior", "stage4"),
-    ("tests/sample_acquisition.resc", "PASS sample_acquisition: ODR controls DRDY", "stage5"),
+    ("tests/sample_acquisition.resc", "PASS sample_acquisition: power-down and DRDY lifecycle", "stage5"),
     ("tests/firmware_polling.resc", "PASS firmware: data-ready polling", "stage5"),
-    ("tests/data_ready_interrupt.resc", "PASS data_ready_interrupt: CTRL1 and CTRL4 drive INT1", "stage6"),
+    ("tests/data_ready_interrupt.resc", "PASS data_ready_interrupt: DRDY lifecycle drives INT1", "stage6"),
     ("tests/firmware_data_ready_interrupt.resc", "PASS firmware: data-ready interrupt", "stage6"),
     ("tests/compare_models.resc", "PASS compare: custom and reference identity/XYZ access", "stage6"),
     ("tests/firmware_reference.resc", "PASS reference firmware: I2C transactions complete; stimulus difference observed", "stage6"),
@@ -77,13 +77,6 @@ def write_model_for_stage(destination, stage):
         if STAGE_ORDER[stage] < 6:
             source = source.replace("using Antmicro.Renode.Core;\n", "")
             source = source.replace("            Interrupt1 = new GPIO();\n", "")
-            source = source.replace(
-                "            RegistersCollection.DefineRegister(0x20, 0x00)\n"
-                "                .WithValueField(4, 4, out outputDataRate, name: \"ODR\")\n"
-                "                .WithWriteCallback((_, __) => UpdateInterrupt1());\n",
-                "            RegistersCollection.DefineRegister(0x20, 0x00)\n"
-                "                .WithValueField(4, 4, out outputDataRate, name: \"ODR\");\n",
-            )
             control4 = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.7: this stage models only INT1_DRDY\.\n"
                 r"            RegistersCollection\.DefineRegister\(0x23, 0x00\)\n"
@@ -99,6 +92,8 @@ def write_model_for_stage(destination, stage):
                 "",
             )
             source = source.replace("            Interrupt1.Unset();\n", "")
+            # Stage 5 owns the DRDY lifecycle but has no external interrupt yet.
+            source = source.replace("            UpdateInterrupt1();\n", "")
             interrupt_helper = re.compile(
                 r"        private void UpdateInterrupt1\(\)\n"
                 r"        \{\n"
@@ -113,7 +108,8 @@ def write_model_for_stage(destination, stage):
             control1 = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.4: ODR=0 selects power-down\.\n"
                 r"            RegistersCollection\.DefineRegister\(0x20, 0x00\)\n"
-                r"                \.WithValueField\(4, 4, out outputDataRate, name: \"ODR\"\);\n"
+                r"                \.WithValueField\(4, 4, out outputDataRate, name: \"ODR\"\)\n"
+                r"                \.WithWriteCallback\(\(_, __\) => HandleAcquisitionConfigurationChanged\(\)\);\n"
             )
             source, removed = control1.subn("", source, count=1)
             if removed != 1:
@@ -121,15 +117,56 @@ def write_model_for_stage(destination, stage):
             status = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.11: DRDY reports XYZ availability\.\n"
                 r"            RegistersCollection\.DefineRegister\(0x27, 0x00\)\n"
-                r"                \.WithFlag\(0, FieldMode\.Read, valueProviderCallback: _ => AcquisitionEnabled, name: \"DRDY\"\);\n"
+                r"                \.WithFlag\(0, FieldMode\.Read, valueProviderCallback: _ => dataReady, name: \"DRDY\"\);\n"
             )
             source, removed = status.subn("", source, count=1)
             if removed != 1:
                 raise RuntimeError("Could not remove stage-5 STATUS definition")
             source = source.replace("        public byte Control1 => (byte)(outputDataRate.Value << 4);\n", "")
-            source = source.replace("        public byte Status => AcquisitionEnabled ? (byte)0x01 : (byte)0x00;\n", "")
+            source = source.replace("        public byte Status => dataReady ? (byte)0x01 : (byte)0x00;\n", "")
             source = source.replace("        public bool AcquisitionEnabled => outputDataRate.Value != 0;\n", "")
             source = source.replace("        private IValueRegisterField outputDataRate;\n", "")
+            source = source.replace("        private bool dataReady;\n", "")
+            source = source.replace("                AcknowledgeDataReady(register);\n", "")
+            source = source.replace(
+                "        {\n            dataReady = false;\n            RegistersCollection.Reset();\n",
+                "        {\n            RegistersCollection.Reset();\n",
+                1,
+            )
+
+            guarded_sample = re.compile(
+                r"        // Public stimulus API used by automated tests and the optional GUI\.\n"
+                r"        // It represents a completed conversion without simulating motion or analog timing\.\n"
+                r"        public void SetSample\(int x, int y, int z\)\n"
+                r"        \{\n"
+                r"(?:.*\n)*?"
+                r"            this\.Log\(LogLevel\.Debug, \"Sample updated to X=\{0\}, Y=\{1\}, Z=\{2\}\.\", x, y, z\);\n"
+                r"        \}\n",
+            )
+            stage3_sample = (
+                "        // Public stimulus API used by automated tests and the optional GUI.\n"
+                "        // It supplies raw data without simulating motion or analog conversion.\n"
+                "        public void SetSample(int x, int y, int z)\n"
+                "        {\n"
+                "            SetAxis(x, outputXLow, outputXHigh, nameof(x));\n"
+                "            SetAxis(y, outputYLow, outputYHigh, nameof(y));\n"
+                "            SetAxis(z, outputZLow, outputZHigh, nameof(z));\n"
+                "            this.Log(LogLevel.Debug, \"Sample updated to X={0}, Y={1}, Z={2}.\", x, y, z);\n"
+                "        }\n"
+            )
+            source, replaced = guarded_sample.subn(stage3_sample, source, count=1)
+            if replaced != 1:
+                raise RuntimeError("Could not restore the stage-3 sample API")
+
+            for helper_name in ("HandleAcquisitionConfigurationChanged", "AcknowledgeDataReady"):
+                helper = re.compile(
+                    r"        private void " + helper_name + r"\([^\n]*\)\n"
+                    r"        \{\n"
+                    r"(?:.*\n)*?        \}\n\n"
+                )
+                source, removed = helper.subn("", source, count=1)
+                if removed != 1:
+                    raise RuntimeError("Could not remove stage-5 helper: " + helper_name)
 
         if STAGE_ORDER[stage] < 4:
             control2 = re.compile(
@@ -226,7 +263,11 @@ def check_gui(renode):
     from renode_client import Renode
 
     with Renode(renode) as simulation:
-        simulation.advance(.1)
+        # The firmware enables acquisition before this stimulus represents a
+        # completed conversion, just like an interactive GUI update.
+        simulation.advance(.05)
+        simulation.set_sample(1000, -500, 16384)
+        simulation.advance(.05)
         state = simulation.state()
         assert state["registers"] == {
             "WHO_AM_I": 0x44, "CTRL1": 0x20, "CTRL2": 0x04,
@@ -247,6 +288,9 @@ def check_gui(renode):
         state = simulation.state()
         assert state["registers"]["STATUS"] == 0 and not state["interrupt1"], state
         simulation.write_register(0x20, 0x20)
+        state = simulation.state()
+        assert state["registers"]["STATUS"] == 0 and not state["interrupt1"], state
+        simulation.set_sample(4, 5, 6)
         state = simulation.state()
         assert state["registers"]["STATUS"] == 1 and state["interrupt1"], state
     page = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

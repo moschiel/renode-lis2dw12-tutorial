@@ -199,19 +199,30 @@ static void ValidateDataReadyPolling(void)
 {
   uint8_t ctrl1 = 0x20;
   uint8_t status = 0;
+  uint32_t startedAt = HAL_GetTick();
   const uint8_t successMessage[] = "DRDY_POLL: PASS\r\n";
   const uint8_t errorMessage[] = "DRDY_POLL: ERROR\r\n";
   const uint8_t *message = errorMessage;
   uint16_t messageSize = sizeof(errorMessage) - 1;
 
   if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                        I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) == HAL_OK
-      && HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_STATUS,
-                          I2C_MEMADD_SIZE_8BIT, &status, 1, 100) == HAL_OK
-      && (status & 0x01) != 0)
+                        I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) == HAL_OK)
   {
-    message = successMessage;
-    messageSize = sizeof(successMessage) - 1;
+    // ODR enables conversions; DRDY is raised only after a new sample arrives.
+    while ((HAL_GetTick() - startedAt) < 1000)
+    {
+      if (HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_STATUS,
+                           I2C_MEMADD_SIZE_8BIT, &status, 1, 100) != HAL_OK)
+      {
+        break;
+      }
+      if ((status & 0x01) != 0)
+      {
+        message = successMessage;
+        messageSize = sizeof(successMessage) - 1;
+        break;
+      }
+    }
   }
 
   HAL_UART_Transmit(&huart2, (uint8_t *)message, messageSize, 100);

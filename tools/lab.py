@@ -15,6 +15,10 @@ class Lab:
         self.lock = threading.RLock()
         self.stop = threading.Event()
         self.error = None
+        # Let firmware enable acquisition, then deliver one completed conversion
+        # so the initial polling and interrupt demonstrations can finish.
+        renode.advance(.05)
+        renode.set_sample(1000, -500, 16384)
         renode.advance(.05)
         self.snapshot = renode.state()
 

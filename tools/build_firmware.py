@@ -1,5 +1,6 @@
 """Build the CubeMX-generated STM32L072 firmware with Arm GNU Toolchain."""
 import argparse
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,18 +10,31 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "firmware" / "lis2dw12-demo"
 
 
+def load_env(path):
+    """Load simple KEY=VALUE entries without adding a Python dependency."""
+    if not path.is_file():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
 def main():
+    load_env(ROOT / ".env")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--gcc",
-        default="arm-none-eabi-gcc",
-        help="Arm GCC executable name or full path",
+        default=os.environ.get("ARM_GCC", "arm-none-eabi-gcc"),
+        help="Arm GCC executable name or path (default: ARM_GCC from .env)",
     )
     args = parser.parse_args()
 
     gcc = shutil.which(args.gcc) or (Path(args.gcc) if Path(args.gcc).is_file() else None)
     if gcc is None:
-        parser.error("Arm GCC not found. Use --gcc with the executable path.")
+        parser.error("Arm GCC not found. Set ARM_GCC in .env or use --gcc.")
 
     build = PROJECT / "Debug"
     build.mkdir(exist_ok=True)

@@ -6,20 +6,31 @@ python "dev = monitor.Machine['sysbus.accel']"
 python "dev.Write(Array[Byte]([0x23, 0x01]))"
 python "assert not dev.Interrupt1.IsSet, 'INT1 asserted while acquisition was disabled'"
 
-# Enabling acquisition makes DRDY active and routes it to INT1.
+# Enabling acquisition alone does not create a data-ready event.
 python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x20]))"
-python "assert dev.Interrupt1.IsSet, 'INT1 did not follow enabled DRDY routing'"
+python "assert not dev.Interrupt1.IsSet, 'ODR alone asserted INT1'"
 
-# Either side of the logical AND can deassert the pin.
+# A completed sample sets DRDY and the enabled route forwards it to INT1.
+python "dev.SetSample(1000, -500, 16384)"
+python "assert dev.Interrupt1.IsSet, 'new sample did not assert routed INT1'"
+
+# Reading an axis high byte acknowledges the sample and deasserts INT1.
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x29]))"
+python "dev.Read(1)"
+python "assert not dev.Interrupt1.IsSet, 'acknowledged sample left INT1 asserted'"
+
+# Routing gates a real pending event without creating or consuming it.
+python "dev.SetSample(-1, 2, -3)"
+python "assert dev.Interrupt1.IsSet, 'second sample did not reassert INT1'"
 python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x23, 0x00]))"
 python "assert not dev.Interrupt1.IsSet, 'INT1 ignored disabled routing'"
 python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x23, 0x01]))"
-python "assert dev.Interrupt1.IsSet, 'INT1 did not reassert'"
+python "assert dev.Interrupt1.IsSet, 'pending DRDY did not follow re-enabled routing'"
 python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x00]))"
-python "assert not dev.Interrupt1.IsSet, 'INT1 ignored power-down'"
+python "assert not dev.Interrupt1.IsSet and dev.Status == 0, 'power-down did not clear pending DRDY'"
 
 python "dev.Reset()"
 python "assert not dev.Interrupt1.IsSet, 'hardware reset did not clear INT1'"
 
-echo "PASS data_ready_interrupt: CTRL1 and CTRL4 drive INT1"
+echo "PASS data_ready_interrupt: DRDY lifecycle drives INT1"
 quit

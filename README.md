@@ -84,6 +84,7 @@ New-Item -ItemType Directory ..\my-lis2dw12\models, ..\my-lis2dw12\platforms, ..
 Copy-Item -Recurse tests ..\my-lis2dw12\tests
 Copy-Item -Recurse firmware ..\my-lis2dw12\firmware
 Copy-Item tools\build_firmware.py ..\my-lis2dw12\tools\build_firmware.py
+Copy-Item .env.example ..\my-lis2dw12\.env.example
 Copy-Item tools\lab.py, tools\renode_client.py ..\my-lis2dw12\tools
 Copy-Item scripts\bridge.py, scripts\lab.resc, scripts\uart_capture.py ..\my-lis2dw12\scripts
 Copy-Item -Recurse web ..\my-lis2dw12\web
@@ -98,6 +99,7 @@ mkdir ../my-lis2dw12/models ../my-lis2dw12/platforms ../my-lis2dw12/scripts ../m
 cp -R tests ../my-lis2dw12/tests
 cp -R firmware ../my-lis2dw12/firmware
 cp tools/build_firmware.py ../my-lis2dw12/tools/build_firmware.py
+cp .env.example ../my-lis2dw12/.env.example
 cp tools/lab.py tools/renode_client.py ../my-lis2dw12/tools/
 cp scripts/bridge.py scripts/lab.resc scripts/uart_capture.py ../my-lis2dw12/scripts/
 cp -R web ../my-lis2dw12/web
@@ -418,10 +420,12 @@ code are supplied by CubeMX.
 > If you edit the firmware source, you can rebuild it with STM32CubeIDE or use
 > the supplied `tools/build_firmware.py` without an IDE. The script calls Arm
 > GNU Toolchain directly and is usable on Windows or Linux. If
-> `arm-none-eabi-gcc` is not on `PATH`, pass its full path:
+> `arm-none-eabi-gcc` is not on `PATH`, create `.env` from `.env.example` and
+> set `ARM_GCC` to the executable's full path:
 >
 > ```powershell
-> python tools\build_firmware.py --gcc "C:\path\to\arm-none-eabi-gcc.exe"
+> Copy-Item .env.example .env
+> python tools\build_firmware.py
 > ```
 >
 > With the bundled STM32CubeIDE toolchain, the executable is under the IDE's
@@ -807,17 +811,27 @@ PASS firmware: IF_ADD_INC behavior
 ### 5.1 ODR and DRDY behavior
 
 The `ODR` field in `CTRL1` (`0x20`) controls whether the sensor is in power-down
-or acquisition mode. `STATUS.DRDY` (`0x27`, bit 0) reports that XYZ data is
-available. See datasheet sections **8.4** and **8.11**.
+or acquisition mode. `STATUS.DRDY` (`0x27`, bit 0) reports whether a new XYZ
+sample is waiting for firmware. See datasheet sections **8.4** and **8.11**.
 
 This reduced model keeps the digital dependency used by polling firmware. It
 does not simulate the different sampling frequencies encoded by non-zero `ODR`
-values:
+values. Instead, the public `SetSample` method represents one completed
+conversion:
 
-| `CTRL1.ODR` | Mode | `STATUS.DRDY` |
-|---|---|---|
-| `0000` | Power-down | `0` |
-| Any non-zero value | Acquisition active | `1` |
+```mermaid
+flowchart LR
+    P[ODR = 0<br/>Power-down] -->|SetSample ignored| P
+    P -->|Write non-zero ODR| A[Acquisition enabled<br/>DRDY = 0]
+    A -->|SetSample| D[New XYZ available<br/>DRDY = 1]
+    D -->|Read an axis high byte| A
+    A -->|Write ODR = 0| P
+    D -->|Write ODR = 0| P
+```
+
+Reading `STATUS` observes the flag without clearing it. In the default latched
+mode, reading `OUT_X_H`, `OUT_Y_H`, or `OUT_Z_H` acknowledges the sample and
+clears `DRDY`; see application note AN5038, section **3.2**.
 
 ### 5.2 Define CTRL1 and STATUS
 
@@ -826,40 +840,97 @@ Add these definitions after `WHO_AM_I`:
 ```csharp
 // DS11811 Rev. 9, datasheet section 8.4: ODR=0 selects power-down.
 RegistersCollection.DefineRegister(0x20, 0x00)
-    .WithValueField(4, 4, out outputDataRate, name: "ODR");
+    .WithValueField(4, 4, out outputDataRate, name: "ODR")
+    .WithWriteCallback((_, __) => HandleAcquisitionConfigurationChanged());
 
 // DS11811 Rev. 9, datasheet section 8.11: DRDY reports XYZ availability.
 RegistersCollection.DefineRegister(0x27, 0x00)
     .WithFlag(0, FieldMode.Read,
-        valueProviderCallback: _ => AcquisitionEnabled, name: "DRDY");
+        valueProviderCallback: _ => dataReady, name: "DRDY");
 ```
 
-The `valueProviderCallback` calculates `DRDY` when firmware reads `STATUS`; the
-bit does not need separate storage. Add the field handle and the reduced state:
+The callback returns the pending event whenever firmware reads `STATUS`. Add
+the acquisition state and make `SetSample` reproduce the observable effect of
+a completed conversion:
 
 ```csharp
 public bool AcquisitionEnabled => outputDataRate.Value != 0;
 
+public void SetSample(int x, int y, int z)
+{
+    // CTRL1.ODR=0 is power-down, so no conversion can update the output registers.
+    if(!AcquisitionEnabled)
+    {
+        this.Log(LogLevel.Debug, "Ignoring sample while the device is in power-down.");
+        return;
+    }
+
+    SetAxis(x, outputXLow, outputXHigh, nameof(x));
+    SetAxis(y, outputYLow, outputYHigh, nameof(y));
+    SetAxis(z, outputZLow, outputZHigh, nameof(z));
+    // A completed conversion makes a new XYZ set available to firmware.
+    dataReady = true;
+}
+
+private void HandleAcquisitionConfigurationChanged()
+{
+    // Entering power-down invalidates any pending data-ready indication.
+    if(!AcquisitionEnabled)
+    {
+        dataReady = false;
+    }
+}
+
 private IValueRegisterField outputDataRate;
+private bool dataReady;
 ```
 
-Fields in these registers that do not affect the demonstrated polling flow are
-deliberately outside this stage.
+Also set `dataReady = false;` at the beginning of `Reset()` so a hardware reset
+discards any pending sample before restoring the register defaults.
+
+In `Read`, remember the address being accessed and call a helper before moving
+to the next register:
+
+```csharp
+var register = selectedRegister;
+result[i] = RegistersCollection.Read(register);
+AcknowledgeDataReady(register);
+IncrementSelectedRegister();
+```
+
+The helper models the default acknowledgement rule without making the public
+GUI inspection API consume the event:
+
+```csharp
+private void AcknowledgeDataReady(byte register)
+{
+    // AN5038 section 3.2: in the default latched mode, reading any axis
+    // high byte acknowledges the available XYZ set and clears DRDY.
+    if(dataReady && (register == 0x29 || register == 0x2B || register == 0x2D))
+    {
+        dataReady = false;
+    }
+}
+```
+
+Fields that do not affect this polling flow remain outside this stage.
 
 ### 5.3 Validate polling
 
-`tests/sample_acquisition.resc` checks reset, a non-zero `ODR`, and a return to
-power-down. Its comments show the direct register transactions:
+`tests/sample_acquisition.resc` checks that power-down blocks samples, ODR alone
+does not raise `DRDY`, a completed sample does raise it, and an XYZ read clears
+it. Its comments show the direct register transactions:
 
 ```sh
 renode --console --disable-gui --plain tests/sample_acquisition.resc
 ```
 
-**Expected:** `PASS sample_acquisition: ODR controls DRDY`.
+**Expected:** `PASS sample_acquisition: power-down and DRDY lifecycle`.
 
 ### 5.4 Check the STM32 firmware
 
-The supplied firmware enables acquisition and polls bit 0 of `STATUS`:
+The supplied firmware enables acquisition and polls bit 0 of `STATUS` until a
+new sample is available:
 
 ```c
 uint8_t ctrl1 = 0x20;
@@ -867,8 +938,15 @@ uint8_t status = 0;
 
 HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
                   I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100);
-HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_STATUS,
-                 I2C_MEMADD_SIZE_8BIT, &status, 1, 100);
+while ((HAL_GetTick() - startedAt) < 1000)
+{
+  HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_STATUS,
+                   I2C_MEMADD_SIZE_8BIT, &status, 1, 100);
+  if ((status & 0x01) != 0)
+  {
+    break;
+  }
+}
 ```
 
 Run the firmware check for polling:
@@ -891,10 +969,10 @@ Polling works, but firmware can instead ask the sensor to signal new data on a
 pin. `CTRL4_INT1_PAD_CTRL.INT1_DRDY` (`0x23`, bit 0) routes data-ready to
 `INT1`; see datasheet section **8.7**.
 
-For this tutorial, the output is the logical AND of the two states already
-modeled:
+For this tutorial, the output is the logical AND between a real pending sample
+and its routing bit:
 
-| Acquisition active | `INT1_DRDY` | `INT1` |
+| Pending `STATUS.DRDY` | `INT1_DRDY` | `INT1` |
 |---:|---:|---:|
 | `0` | `0` or `1` | `0` |
 | `1` | `0` | `0` |
@@ -923,13 +1001,15 @@ RegistersCollection.DefineRegister(0x23, 0x00)
     .WithWriteCallback((_, __) => UpdateInterrupt1());
 ```
 
-Also append the same callback to the existing `CTRL1` definition. Either side
-of the logical AND can then update the output:
+Call `UpdateInterrupt1()` after setting or clearing `dataReady` in `SetSample`,
+`HandleAcquisitionConfigurationChanged`, and `AcknowledgeDataReady`. The routing
+callback handles changes to the other side of the logical AND:
 
 ```csharp
 private void UpdateInterrupt1()
 {
-    Interrupt1.Set(AcquisitionEnabled && dataReadyInterruptEnabled.Value);
+    // CTRL4 only routes the pending data-ready event; it does not create one.
+    Interrupt1.Set(dataReady && dataReadyInterruptEnabled.Value);
 }
 
 private IFlagRegisterField dataReadyInterruptEnabled;
@@ -956,14 +1036,15 @@ In REPL syntax, the indented connection means that the `Interrupt1` GPIO from
 
 ### 6.4 Validate the interrupt path
 
-First test the model without firmware. `tests/data_ready_interrupt.resc` covers
-both inputs of the logical AND and hardware reset:
+First test the model without firmware. `tests/data_ready_interrupt.resc` checks
+that ODR alone does not assert the pin, a completed sample does, an XYZ read
+clears it, and the routing bit gates a pending event:
 
 ```sh
 renode --console --disable-gui --plain tests/data_ready_interrupt.resc
 ```
 
-**Expected:** `PASS data_ready_interrupt: CTRL1 and CTRL4 drive INT1`.
+**Expected:** `PASS data_ready_interrupt: DRDY lifecycle drives INT1`.
 
 The firmware enables `INT1_DRDY`, waits for the GPIO callback, and reports the
 result through USART2:
