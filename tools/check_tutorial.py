@@ -118,24 +118,19 @@ def write_model_for_stage(destination, stage):
             status = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.11: DRDY reports XYZ availability\.\n"
                 r"            RegistersCollection\.DefineRegister\(\(byte\)RegisterId\.Status, 0x00\)\n"
-                r"                \.WithFlag\(0, FieldMode\.Read, valueProviderCallback: _ => dataReady, name: \"DRDY\"\);\n"
+                r"                \.WithFlag\(0, out dataReady, FieldMode\.Read, name: \"DRDY\"\);\n"
             )
             source, removed = status.subn("", source, count=1)
             if removed != 1:
                 raise RuntimeError("Could not remove stage-5 STATUS definition")
             source = source.replace("        public byte Control1 => (byte)(outputDataRate.Value << 4);\n", "")
-            source = source.replace("        public byte Status => dataReady ? (byte)0x01 : (byte)0x00;\n", "")
+            source = source.replace("        public byte Status => dataReady.Value ? (byte)0x01 : (byte)0x00;\n", "")
             source = source.replace("        public bool AcquisitionEnabled => outputDataRate.Value != 0;\n", "")
             source = source.replace("        private IValueRegisterField outputDataRate;\n", "")
-            source = source.replace("        private bool dataReady;\n", "")
+            source = source.replace("        private IFlagRegisterField dataReady;\n", "")
             source = source.replace("            Control1 = 0x20,\n", "")
             source = source.replace("            Status = 0x27,\n", "")
             source = source.replace("                AcknowledgeDataReady(register);\n", "")
-            source = source.replace(
-                "        {\n            dataReady = false;\n            RegistersCollection.Reset();\n",
-                "        {\n            RegistersCollection.Reset();\n",
-                1,
-            )
 
             guarded_sample = re.compile(
                 r"        // Public stimulus API used by automated tests and the optional GUI\.\n"

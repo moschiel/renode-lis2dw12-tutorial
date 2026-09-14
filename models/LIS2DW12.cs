@@ -27,7 +27,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
                 .WithWriteCallback((_, __) => UpdateInterrupt1());
             // DS11811 Rev. 9, datasheet section 8.11: DRDY reports XYZ availability.
             RegistersCollection.DefineRegister((byte)RegisterId.Status, 0x00)
-                .WithFlag(0, FieldMode.Read, valueProviderCallback: _ => dataReady, name: "DRDY");
+                .WithFlag(0, out dataReady, FieldMode.Read, name: "DRDY");
             // DS11811 Rev. 9, sections 8.12-8.17: each axis is exposed as a
             // little-endian, signed 16-bit value split across two registers.
             // Each `out` parameter receives a handle to the register field.
@@ -49,7 +49,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         public byte Control1 => (byte)(outputDataRate.Value << 4);
         public byte Control2 => automaticAddressIncrement.Value ? (byte)0x04 : (byte)0x00;
         public byte Control4 => dataReadyInterruptEnabled.Value ? (byte)0x01 : (byte)0x00;
-        public byte Status => dataReady ? (byte)0x01 : (byte)0x00;
+        public byte Status => dataReady.Value ? (byte)0x01 : (byte)0x00;
         public bool AcquisitionEnabled => outputDataRate.Value != 0;
         public short SampleX => ReadAxis(outputXLow, outputXHigh);
         public short SampleY => ReadAxis(outputYLow, outputYHigh);
@@ -70,7 +70,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             SetAxis(y, outputYLow, outputYHigh, nameof(y));
             SetAxis(z, outputZLow, outputZHigh, nameof(z));
             // A completed conversion makes a new XYZ set available to firmware.
-            dataReady = true;
+            dataReady.Value = true;
             UpdateInterrupt1();
             this.Log(LogLevel.Debug, "Sample updated to X={0}, Y={1}, Z={2}.", x, y, z);
         }
@@ -92,7 +92,6 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         // Represents a hardware reset of the modeled device.
         public void Reset()
         {
-            dataReady = false;
             RegistersCollection.Reset();
             FinishTransmission();
             Interrupt1.Unset();
@@ -171,7 +170,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             // Entering power-down invalidates any pending data-ready indication.
             if(!AcquisitionEnabled)
             {
-                dataReady = false;
+                dataReady.Value = false;
             }
             UpdateInterrupt1();
         }
@@ -180,11 +179,11 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         {
             // AN5038 section 3.2: in the default latched mode, reading any axis
             // high byte acknowledges the available XYZ set and clears DRDY.
-            if(dataReady && (register == (byte)RegisterId.OutputXHigh
+            if(dataReady.Value && (register == (byte)RegisterId.OutputXHigh
                 || register == (byte)RegisterId.OutputYHigh
                 || register == (byte)RegisterId.OutputZHigh))
             {
-                dataReady = false;
+                dataReady.Value = false;
                 UpdateInterrupt1();
                 this.Log(LogLevel.Debug, "XYZ data acknowledged; DRDY cleared.");
             }
@@ -201,7 +200,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         private void UpdateInterrupt1()
         {
             // CTRL4 only routes the pending data-ready event; it does not create one.
-            var state = dataReady && dataReadyInterruptEnabled.Value;
+            var state = dataReady.Value && dataReadyInterruptEnabled.Value;
             Interrupt1.Set(state);
             this.Log(LogLevel.Noisy, "INT1 data-ready state changed to {0}.", state);
         }
@@ -267,7 +266,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         private IValueRegisterField outputZLow;
         private IValueRegisterField outputZHigh;
         private byte selectedRegister;
-        private bool dataReady;
+        private IFlagRegisterField dataReady;
         private bool waitingForRegister;
     }
 }

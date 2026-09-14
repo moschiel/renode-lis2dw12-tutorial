@@ -883,18 +883,18 @@ RegistersCollection.DefineRegister((byte)RegisterId.Control1, 0x00)
 
 // DS11811 Rev. 9, datasheet section 8.11: DRDY reports XYZ availability.
 RegistersCollection.DefineRegister((byte)RegisterId.Status, 0x00)
-    .WithFlag(0, FieldMode.Read,
-        valueProviderCallback: _ => dataReady, name: "DRDY");
+    .WithFlag(0, out dataReady, FieldMode.Read, name: "DRDY");
 ```
 
-The callback returns the pending event whenever firmware reads `STATUS`. First,
-add the acquisition state and its field at class scope:
+The `out` argument gives `dataReady` a handle to the stored `DRDY` bit, just as
+the XYZ handles refer to their register fields. Add the acquisition state and
+the two handles at class scope:
 
 ```csharp
 public bool AcquisitionEnabled => outputDataRate.Value != 0;
 
 private IValueRegisterField outputDataRate;
-private bool dataReady;
+private IFlagRegisterField dataReady;
 ```
 
 Section 3 already added a simpler `SetSample` method. **Replace that entire
@@ -914,7 +914,7 @@ public void SetSample(int x, int y, int z)
     SetAxis(y, outputYLow, outputYHigh, nameof(y));
     SetAxis(z, outputZLow, outputZHigh, nameof(z));
     // A completed conversion makes a new XYZ set available to firmware.
-    dataReady = true;
+    dataReady.Value = true;
 }
 ```
 
@@ -926,13 +926,13 @@ private void HandleAcquisitionConfigurationChanged()
     // Entering power-down invalidates any pending data-ready indication.
     if(!AcquisitionEnabled)
     {
-        dataReady = false;
+        dataReady.Value = false;
     }
 }
 ```
 
-Also set `dataReady = false;` at the beginning of `Reset()` so a hardware reset
-discards any pending sample before restoring the register defaults.
+`RegistersCollection.Reset()` also restores the stored `DRDY` bit to its reset
+value (`0`), so no extra manual reset code is needed.
 
 In `Read`, remember the address being accessed and call a helper before moving
 to the next register:
@@ -953,11 +953,11 @@ private void AcknowledgeDataReady(byte register)
 {
     // AN5038 section 3.2: in the default latched mode, reading any axis
     // high byte acknowledges the available XYZ set and clears DRDY.
-    if(dataReady && (register == (byte)RegisterId.OutputXHigh
+    if(dataReady.Value && (register == (byte)RegisterId.OutputXHigh
         || register == (byte)RegisterId.OutputYHigh
         || register == (byte)RegisterId.OutputZHigh))
     {
-        dataReady = false;
+        dataReady.Value = false;
     }
 }
 ```
@@ -1061,7 +1061,7 @@ callback handles changes to the other side of the logical AND:
 private void UpdateInterrupt1()
 {
     // CTRL4 only routes the pending data-ready event; it does not create one.
-    Interrupt1.Set(dataReady && dataReadyInterruptEnabled.Value);
+    Interrupt1.Set(dataReady.Value && dataReadyInterruptEnabled.Value);
 }
 
 private IFlagRegisterField dataReadyInterruptEnabled;
