@@ -535,6 +535,7 @@ Add these definitions after `WHO_AM_I` in the constructor:
 ```csharp
 // DS11811 Rev. 9, datasheet sections 8.12-8.17: each axis is exposed as a
 // little-endian, signed 16-bit value split across two registers.
+// Each `out` parameter receives a handle to the field in that register.
 RegistersCollection.DefineRegister(0x28, 0x00).WithValueField(0, 8, out outputXLow, FieldMode.Read, name: "OUT_X_L");
 RegistersCollection.DefineRegister(0x29, 0x00).WithValueField(0, 8, out outputXHigh, FieldMode.Read, name: "OUT_X_H");
 RegistersCollection.DefineRegister(0x2A, 0x00).WithValueField(0, 8, out outputYLow, FieldMode.Read, name: "OUT_Y_L");
@@ -543,9 +544,23 @@ RegistersCollection.DefineRegister(0x2C, 0x00).WithValueField(0, 8, out outputZL
 RegistersCollection.DefineRegister(0x2D, 0x00).WithValueField(0, 8, out outputZHigh, FieldMode.Read, name: "OUT_Z_H");
 ```
 
-Declare the six fields and expose a method that writes them from the simulated
-environment. These writes bypass the I2C permissions intentionally; the I2C
-master still sees read-only registers:
+The `out` arguments assign `IValueRegisterField` handles. 
+Its `.Value` property reads or writes the field stored in the
+register collection. Declare them at class scope:
+
+```csharp
+// Handles returned by WithValueField; their .Value accesses the register fields.
+private IValueRegisterField outputXLow;
+private IValueRegisterField outputXHigh;
+private IValueRegisterField outputYLow;
+private IValueRegisterField outputYHigh;
+private IValueRegisterField outputZLow;
+private IValueRegisterField outputZHigh;
+```
+
+Expose a method that writes those fields from the simulated environment. These
+writes intentionally bypass the I2C permissions; the I2C master still sees
+read-only registers:
 
 ```csharp
 public short SampleX => ReadAxis(outputXLow, outputXHigh);
@@ -570,6 +585,7 @@ private static void SetAxis(int value, IValueRegisterField low,
     }
 
     var raw = unchecked((ushort)(short)value);
+    // These handles update the low and high bytes in the actual register fields.
     low.Value = (byte)raw;
     high.Value = (byte)(raw >> 8);
 }
@@ -579,13 +595,6 @@ private static short ReadAxis(IValueRegisterField low, IValueRegisterField high)
     var raw = (ushort)(low.Value | (high.Value << 8));
     return unchecked((short)raw);
 }
-
-private IValueRegisterField outputXLow;
-private IValueRegisterField outputXHigh;
-private IValueRegisterField outputYLow;
-private IValueRegisterField outputYHigh;
-private IValueRegisterField outputZLow;
-private IValueRegisterField outputZHigh;
 ```
 
 ### 3.3 Validate the model

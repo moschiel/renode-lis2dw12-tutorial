@@ -15,6 +15,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             RegistersCollection.DefineRegister(0x0F, 0x44).WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
             // DS11811 Rev. 9, sections 8.12-8.17: each axis is exposed as a
             // little-endian, signed 16-bit value split across two registers.
+            // Each `out` parameter receives a handle to the register field.
             RegistersCollection.DefineRegister(0x28, 0x00).WithValueField(0, 8, out outputXLow, FieldMode.Read, name: "OUT_X_L");
             RegistersCollection.DefineRegister(0x29, 0x00).WithValueField(0, 8, out outputXHigh, FieldMode.Read, name: "OUT_X_H");
             RegistersCollection.DefineRegister(0x2A, 0x00).WithValueField(0, 8, out outputYLow, FieldMode.Read, name: "OUT_Y_L");
@@ -145,6 +146,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             }
 
             var raw = unchecked((ushort)(short)value);
+            // These handles update the low and high bytes in the actual register fields.
             low.Value = (byte)raw;
             high.Value = (byte)(raw >> 8);
         }
@@ -162,6 +164,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         }
 
         private IFlagRegisterField automaticAddressIncrement;
+        // Handles returned by WithValueField; their .Value accesses the register fields.
         private IValueRegisterField outputXLow;
         private IValueRegisterField outputXHigh;
         private IValueRegisterField outputYLow;
