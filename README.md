@@ -520,6 +520,8 @@ Start the emulation with `start`.
 The `showAnalyzer usart2` command in the script opens a window for debugging UART2;
 As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
 
+The later firmware validation scripts enable the same UART analyzer automatically.
+
 ## 3. Read XYZ output data
 
 ### 3.1 Output register behavior
@@ -663,18 +665,15 @@ then checks only the capabilities completed through this section:
 renode --console --plain tests/firmware_xyz.resc
 ```
 
-The headless test prints the UART line it validates, followed by its result:
+The test opens the UART analyzer automatically. It should display
+`XYZ: 1000,-500,16384`; the Monitor prints only the validation result:
 
 ```text
-UART: XYZ: 1000,-500,16384
 PASS firmware: XYZ sample
 ```
 
-### Inspect UART
-
-Firmware test scripts open Renode's UART analyzer before the firmware runs.
-After the test result, Renode remains at the Monitor prompt so the UART output
-can be inspected. Type `quit` in the Monitor when finished.
+The test remains open for inspection. Type `quit` in the Monitor when finished;
+the later firmware tests follow the same behavior.
 
 ## 4. Configure multi-byte register access
 
@@ -796,10 +795,9 @@ Run the firmware check for this behavior:
 renode --console --plain tests/firmware_auto_increment.resc
 ```
 
-The headless test prints:
+The UART analyzer shows the firmware output. The Monitor prints:
 
 ```text
-UART: IF_ADD_INC: PASS
 PASS firmware: IF_ADD_INC behavior
 ```
 
@@ -878,10 +876,9 @@ Run the firmware check for polling:
 renode --console --plain tests/firmware_polling.resc
 ```
 
-The headless test prints:
+The UART analyzer shows the firmware output. The Monitor prints:
 
 ```text
-UART: DRDY_POLL: PASS
 PASS firmware: data-ready polling
 ```
 
@@ -990,10 +987,9 @@ Run the complete firmware path:
 renode --console --plain tests/firmware_data_ready_interrupt.resc
 ```
 
-The headless test prints:
+The UART analyzer shows the firmware output. The Monitor prints:
 
 ```text
-UART: DRDY_INT1: PASS
 PASS firmware: data-ready interrupt
 ```
 

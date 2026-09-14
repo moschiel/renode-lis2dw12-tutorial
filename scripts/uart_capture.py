@@ -22,7 +22,6 @@ if not headless_test:
 
 def assert_current_line(expected, description):
     assert uart_lines.count(expected) == 1, 'UART mismatch: ' + str(uart_lines)
-    print('UART: ' + expected)
     print('PASS firmware: ' + description)
 
 
