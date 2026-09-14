@@ -50,7 +50,7 @@ def mc_assert_reference_firmware_uart():
     # This is the final comparison utility, so it intentionally checks the
     # complete UART result against the official model.
     expected = [
-        'WHO_AM_I: 0x44', 'XYZ: ERROR', 'IF_ADD_INC: ERROR',
+        'Hello from STM32', 'WHO_AM_I: 0x44', 'XYZ: ERROR', 'IF_ADD_INC: ERROR',
         'DRDY_POLL: PASS', 'DRDY_INT1: PASS',
     ]
     assert uart_lines == expected, 'UART mismatch: ' + str(uart_lines)

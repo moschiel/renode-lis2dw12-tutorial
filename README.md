@@ -518,7 +518,8 @@ renode --console --plain scripts/stm32_lis2dw12.resc
 
 Start the emulation with `start`.
 The `showAnalyzer usart2` command in the script opens a window for debugging UART2;
-As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
+As programmed in the firmware, its first line is `Hello from STM32`, followed
+by `WHO_AM_I: 0x44`.
 
 The later firmware validation scripts enable the same UART analyzer automatically.
 

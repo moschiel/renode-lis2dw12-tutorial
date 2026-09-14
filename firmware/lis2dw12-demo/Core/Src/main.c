@@ -285,6 +285,10 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  const uint8_t helloMessage[] = "Hello from STM32\r\n";
+  HAL_UART_Transmit(&huart2, (uint8_t *)helloMessage,
+                    sizeof(helloMessage) - 1, 100);
+
   ValidateWhoAmI();
   ValidateXyzRead();
   ValidateAutoIncrement();

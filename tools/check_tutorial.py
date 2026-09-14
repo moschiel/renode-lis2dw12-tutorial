@@ -237,7 +237,7 @@ def check_gui(renode):
         }, state
         assert state["sample"] == {"x": 1000, "y": -500, "z": 16384}, state
         assert state["uart"] == [
-            "WHO_AM_I: 0x44", "XYZ: 1000,-500,16384", "IF_ADD_INC: PASS",
+            "Hello from STM32", "WHO_AM_I: 0x44", "XYZ: 1000,-500,16384", "IF_ADD_INC: PASS",
             "DRDY_POLL: PASS", "DRDY_INT1: PASS",
         ], state
         assert state["interrupt1"], state
