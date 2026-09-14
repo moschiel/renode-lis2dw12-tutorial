@@ -81,7 +81,7 @@ def write_model_for_stage(destination, stage):
             "        public byte Control2 => automaticAddressIncrement.Value ? (byte)0x04 : (byte)0x00;\n",
             "",
         )
-        source = source.replace("                IncrementSelectedRegister();", "                selectedRegister++;")
+        source = source.replace("                IncrementSelectedRegister();\n", "")
         increment_helper = re.compile(
             r"        private void IncrementSelectedRegister\(\)\n"
             r"        \{\n"

@@ -611,8 +611,8 @@ renode --console --disable-gui --plain tests/xyz_read.resc
 
 ### 3.4 Read XYZ from the STM32
 
-The firmware reads six bytes starting at `OUT_X_L` and reconstructs each signed
-axis in little-endian order:
+The firmware selects and reads each output byte separately, then reconstructs
+each signed axis in little-endian order:
 
 ```c
 #define LIS2DW12_OUT_X_L 0x28
@@ -624,18 +624,22 @@ static void DecodeXyz(const uint8_t raw[6], int16_t axes[3])
   axes[2] = (int16_t)((uint16_t)raw[4] | ((uint16_t)raw[5] << 8));
 }
 
-static HAL_StatusTypeDef ReadXyzBurst(int16_t axes[3])
+static HAL_StatusTypeDef ReadXyzIndividual(int16_t axes[3])
 {
   uint8_t raw[6] = {0};
-  HAL_StatusTypeDef status = HAL_I2C_Mem_Read(
-      &hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_OUT_X_L,
-      I2C_MEMADD_SIZE_8BIT, raw, sizeof(raw), 100);
 
-  if (status == HAL_OK)
+  for (uint8_t i = 0; i < sizeof(raw); i++)
   {
-    DecodeXyz(raw, axes);
+    if (HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS,
+                         LIS2DW12_OUT_X_L + i, I2C_MEMADD_SIZE_8BIT,
+                         &raw[i], 1, 100) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
   }
-  return status;
+
+  DecodeXyz(raw, axes);
+  return HAL_OK;
 }
 ```
 
@@ -713,8 +717,7 @@ RegistersCollection.DefineRegister(0x21, 0x04)
 private IFlagRegisterField automaticAddressIncrement;
 ```
 
-Replace the unconditional `selectedRegister++` after each register read and
-write with:
+After each `RegistersCollection.Write` and `RegistersCollection.Read`, add:
 
 ```csharp
 IncrementSelectedRegister();
@@ -734,6 +737,25 @@ private void IncrementSelectedRegister()
 
 Register selection itself does not advance the pointer; the helper runs once
 for each transferred data byte.
+
+Add the burst helper to the firmware. Unlike the six individual reads from
+tutorial section 3, this requests the whole sample in one I2C operation:
+
+```c
+static HAL_StatusTypeDef ReadXyzBurst(int16_t axes[3])
+{
+  uint8_t raw[6] = {0};
+  HAL_StatusTypeDef status = HAL_I2C_Mem_Read(
+      &hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_OUT_X_L,
+      I2C_MEMADD_SIZE_8BIT, raw, sizeof(raw), 100);
+
+  if (status == HAL_OK)
+  {
+    DecodeXyz(raw, axes);
+  }
+  return status;
+}
+```
 
 ### 4.3 Validate both reading styles
 

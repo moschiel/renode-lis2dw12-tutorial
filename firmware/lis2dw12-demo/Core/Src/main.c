@@ -143,7 +143,7 @@ static void ValidateXyzRead(void)
   const uint8_t *message = errorMessage;
   uint16_t messageSize = sizeof(errorMessage) - 1;
 
-  if (ReadXyzBurst(axes) == HAL_OK && IsExpectedSample(axes))
+  if (ReadXyzIndividual(axes) == HAL_OK && IsExpectedSample(axes))
   {
     message = successMessage;
     messageSize = sizeof(successMessage) - 1;
