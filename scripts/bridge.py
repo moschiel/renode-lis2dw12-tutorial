@@ -25,8 +25,11 @@ def mc_lab_state():
     z = int(accel.SampleZ) & 0xFFFF
     print(json.dumps({
         'registers': {
-            'WHO_AM_I': int(accel.WhoAmI),
-            'CTRL2': int(accel.Control2),
+            'WHO_AM_I': int(accel.ReadRegister(0x0F)),
+            'CTRL1': int(accel.ReadRegister(0x20)),
+            'CTRL2': int(accel.ReadRegister(0x21)),
+            'CTRL4_INT1_PAD_CTRL': int(accel.ReadRegister(0x23)),
+            'STATUS': int(accel.ReadRegister(0x27)),
             'OUT_X_L': x & 0xFF,
             'OUT_X_H': x >> 8,
             'OUT_Y_L': y & 0xFF,
@@ -39,5 +42,6 @@ def mc_lab_state():
             'y': int(accel.SampleY),
             'z': int(accel.SampleZ),
         },
+        'interrupt1': bool(accel.Interrupt1.IsSet),
         'uart': list(uart_lines),
     }))

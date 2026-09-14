@@ -4,30 +4,200 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LIS2DW12 / Renode</title>
 <style>
-:root{--paper:#f3efe5;--ink:#17221c;--line:#9ea99e;--accent:#d14d32;--panel:#fffdf7}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#e2eadf,var(--paper) 55%);color:var(--ink);font-family:Georgia,serif;min-height:100vh;padding:36px}
-main{max-width:760px;margin:auto}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:12px}h1{font-size:clamp(25px,5vw,42px);margin:0}.status{font:12px Consolas,monospace;color:#52705e}
-.path{font:13px Consolas,monospace;margin:24px 0;color:#536157}.registers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.reg{background:var(--panel);border:1px solid var(--line);padding:18px;box-shadow:4px 4px 0 #c9d0c6}.reg>span{display:block;font:12px Consolas,monospace;color:#647067}.reg strong{font:30px Consolas,monospace}.reg small{float:right;font:11px Consolas,monospace;color:var(--accent)}.binary{font:12px Consolas,monospace;margin:4px 0 12px;color:#536157}.fields{border-top:1px solid #d8ddd3;padding-top:7px}.field{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:5px 0;font:11px Consolas,monospace}.field b{font-weight:normal}.field em{font-style:normal;color:var(--accent)}.field code{grid-column:1/-1;color:#667067}
-.terminal{margin-top:22px;background:#152019;color:#d7e5d7;border-left:5px solid var(--accent);padding:14px}.terminal label{font:11px Consolas,monospace;color:#91a595}.terminal pre{min-height:90px;white-space:pre-wrap;margin:10px 0 0;font:14px Consolas,monospace}@media(max-width:600px){body{padding:20px}.registers{grid-template-columns:1fr}}
+:root{--paper:#f1eee4;--ink:#17221c;--muted:#657068;--line:#9da89e;--accent:#c9482d;--green:#315f49;--panel:#fffdf7;--high:#dcebdd}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:30px;background:radial-gradient(circle at 12% 8%,#dbe8d8 0,transparent 35%),linear-gradient(135deg,#e8e5da,var(--paper));color:var(--ink);font-family:Georgia,serif}
+main{max-width:1120px;margin:auto}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:12px}h1{margin:0;font-size:clamp(28px,5vw,44px);font-weight:normal}.status,.mono{font:12px Consolas,monospace}.status{color:var(--green)}.path{margin:14px 0 22px;color:var(--muted);font:13px Consolas,monospace}
+.workbench{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:stretch}.panel{background:var(--panel);border:1px solid var(--line);box-shadow:5px 5px 0 #c7cec5;padding:18px}.panel h2,.register-heading h2{margin:0;font-size:18px;font-weight:normal}.hint{margin:5px 0 0;color:var(--muted);font:11px Consolas,monospace}.sensor-panel,.register-panel{height:720px}.register-panel{display:flex;min-width:0;flex-direction:column}.register-heading{flex:0 0 auto;margin:0 0 10px}
+.scene{position:relative;height:400px;display:grid;place-items:center;cursor:grab;touch-action:none;user-select:none}.scene:active{cursor:grabbing}.cube{position:relative;z-index:1;width:160px;height:100px;transform-style:preserve-3d;transition:transform .08s linear}.face{position:absolute;display:grid;place-items:center;border:2px solid var(--ink);background:rgba(49,95,73,.78);color:#fff;font:700 15px Consolas,monospace;backface-visibility:visible}.front,.back{width:160px;height:100px}.front{transform:translateZ(30px)}.back{transform:rotateY(180deg) translateZ(30px)}.left,.right{left:50px;width:60px;height:100px}.left{transform:rotateY(-90deg) translateZ(80px)}.right{transform:rotateY(90deg) translateZ(80px)}.top,.bottom{top:20px;width:160px;height:60px}.top{transform:rotateX(90deg) translateZ(50px)}.bottom{transform:rotateX(-90deg) translateZ(50px)}.vectors{position:absolute;z-index:2;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}.axis,.component,.resultant,.guide{vector-effect:non-scaling-stroke}.axis{stroke-width:1.5;opacity:.8}.component{stroke-width:3}.resultant{stroke:var(--ink);stroke-width:3}.guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:4 4;opacity:.55}.vector-label{font:700 11px Consolas,monospace}.result-label{fill:var(--ink);font:700 10px Consolas,monospace}.x-color{stroke:#c83c2d;fill:#c83c2d}.y-color{stroke:#2272a2;fill:#2272a2}.z-color{stroke:#c18513;fill:#c18513}
+.orientation-readout{display:flex;justify-content:center;gap:18px;color:var(--muted);font:11px Consolas,monospace}.vector-controls{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font:11px Consolas,monospace;color:var(--muted)}.vector-controls label{display:flex;align-items:center;gap:5px}.vector-controls input{width:auto;margin:0;padding:0}.vector-values{display:flex;gap:13px;margin-top:8px;font:11px Consolas,monospace}.vector-values .x{color:#a62f23}.vector-values .y{color:#195d87}.vector-values .z{color:#8d620d}.sample-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:13px}.sample-grid label{font:11px Consolas,monospace;color:var(--muted)}input{width:100%;margin-top:4px;padding:7px;border:1px solid var(--line);background:#fff;font:13px Consolas,monospace;color:var(--ink)}button{border:1px solid var(--ink);background:var(--ink);color:white;padding:8px 11px;font:12px Consolas,monospace;cursor:pointer}button.secondary{background:transparent;color:var(--ink)}.actions{display:flex;gap:8px;margin-top:10px}.irq{margin-top:16px;padding:10px;border:1px solid var(--line);font:12px Consolas,monospace}.irq.high{background:var(--high);border-color:var(--green);color:var(--green)}
+.terminal{margin-top:18px;background:#152019;color:#d7e5d7;border-left:5px solid var(--accent);padding:14px}.terminal label{font:11px Consolas,monospace;color:#91a595}.terminal pre{min-height:140px;white-space:pre-wrap;margin:10px 0 0;font:14px/1.55 Consolas,monospace}
+.register-heading{display:flex;justify-content:space-between;align-items:end}.registers{display:grid;flex:1;min-height:0;gap:10px;overflow-y:auto;padding-right:6px}.reg{display:grid;grid-template-columns:150px minmax(450px,1fr) 74px;align-items:center;gap:10px;padding:12px;background:var(--panel);border:1px solid var(--line)}.reg-title span{display:block;color:var(--muted);font:11px Consolas,monospace}.reg-title strong{font:14px Consolas,monospace}.bits{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}.bit{min-width:50px;padding:6px 2px;border:1px solid var(--line);background:#ebe9df;text-align:center;font:10px Consolas,monospace}.bit b{display:block;margin:5px 0;font-size:17px}.bit small{display:block;color:var(--muted);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bit.active{background:var(--high)}.bit.writable{cursor:pointer;border-color:var(--green)}.bit.writable:hover{outline:2px solid var(--green)}.hex{text-align:right;font:700 19px Consolas,monospace;color:var(--accent)}
+@media(max-width:850px){body{padding:18px}.workbench{grid-template-columns:1fr}.sensor-panel,.register-panel{height:auto}.register-panel{max-height:720px}.reg{display:block;overflow-x:auto}.reg-title{display:flex;justify-content:space-between;margin-bottom:8px}.bits{min-width:450px}.hex{text-align:left;margin-top:8px}.terminal pre{min-height:140px}}
 </style>
 <main>
 <header><h1>LIS2DW12</h1><span class="status" id="status">CONNECTING</span></header>
-<div class="path">STM32L072 &rarr; I2C1 &rarr; 0x18</div>
-<section class="registers" id="registers"></section>
+<div class="path">STM32L072 &rarr; I2C1 &rarr; LIS2DW12 (0x18)</div>
+<section class="workbench">
+  <article class="panel sensor-panel">
+    <h2>Stationary sensor</h2>
+    <p class="hint">Eye-level view: at rest, the top and bottom faces are edge-on. Drag the package to project gravity onto X, Y and Z.</p>
+    <div class="scene" id="scene" aria-label="Draggable accelerometer orientation">
+      <div class="cube" id="cube">
+        <div class="face front">+Z</div><div class="face back">-Z</div>
+        <div class="face left">-X</div><div class="face right">+X</div>
+        <div class="face top">+Y</div><div class="face bottom">-Y</div>
+      </div>
+      <svg class="vectors" id="vectors" viewBox="0 0 340 400" aria-label="Acceleration vector decomposition">
+        <defs>
+          <marker id="arrow-x" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" class="x-color"/></marker>
+          <marker id="arrow-y" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" class="y-color"/></marker>
+          <marker id="arrow-z" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" class="z-color"/></marker>
+          <marker id="arrow-result" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#17221c"/></marker>
+        </defs>
+        <g id="axis-vectors">
+          <line id="axis-x" class="axis x-color" marker-end="url(#arrow-x)"/><text id="label-x" class="vector-label x-color">+X</text>
+          <line id="axis-y" class="axis y-color" marker-end="url(#arrow-y)"/><text id="label-y" class="vector-label y-color">+Y</text>
+          <line id="axis-z" class="axis z-color" marker-end="url(#arrow-z)"/><text id="label-z" class="vector-label z-color">+Z</text>
+          <line id="component-x" class="component x-color" marker-end="url(#arrow-x)"/>
+          <line id="component-y" class="component y-color" marker-end="url(#arrow-y)"/>
+          <line id="component-z" class="component z-color" marker-end="url(#arrow-z)"/>
+          <line id="resultant" class="resultant" marker-end="url(#arrow-result)"/><text id="result-label" class="result-label">1 g</text>
+        </g>
+        <g id="projection-guides">
+          <line id="guide-x" class="guide"/><line id="guide-y" class="guide"/><line id="guide-z" class="guide"/>
+        </g>
+      </svg>
+    </div>
+    <div class="orientation-readout"><span id="tilt">tilt 0&deg;</span><span>drag: virtual trackball</span></div>
+    <div class="vector-controls">
+      <label><input id="show-vectors" type="checkbox" checked>Axes and components</label>
+      <label><input id="show-guides" type="checkbox">Dashed projection guides</label>
+    </div>
+    <div class="vector-values"><span class="x" id="gx">X 0.00 g</span><span class="y" id="gy">Y 0.00 g</span><span class="z" id="gz">Z +1.00 g</span></div>
+    <div class="sample-grid">
+      <label>X raw<input id="sample-x" type="number" min="-32768" max="32767"></label>
+      <label>Y raw<input id="sample-y" type="number" min="-32768" max="32767"></label>
+      <label>Z raw<input id="sample-z" type="number" min="-32768" max="32767"></label>
+    </div>
+    <div class="actions"><button id="apply-sample">Apply sample</button><button class="secondary" id="reset-view">Reset view</button></div>
+    <div class="irq" id="irq">INT1 LOW</div>
+  </article>
+  <section class="panel register-panel">
+    <div class="register-heading"><h2>Implemented registers</h2><span class="hint">Click outlined writable bits to toggle them</span></div>
+    <section class="registers" id="registers"></section>
+  </section>
+</section>
 <section class="terminal"><label>USART2</label><pre id="uart">Waiting for firmware...</pre></section>
 </main>
 <script>
-const info={
-WHO_AM_I:{address:'0x0F',fields:[['ID',7,0]]},
-CTRL2:{address:'0x21',fields:[['BOOT',7,7],['SOFT_RESET',6,6],['RESERVED',5,5],['CS_PU_DISC',4,4],['BDU',3,3],['IF_ADD_INC',2,2],['I2C_DISABLE',1,1],['SIM',0,0]]},
-OUT_X_L:{address:'0x28',fields:[['X low',7,0]]},OUT_X_H:{address:'0x29',fields:[['X high',7,0]]},
-OUT_Y_L:{address:'0x2A',fields:[['Y low',7,0]]},OUT_Y_H:{address:'0x2B',fields:[['Y high',7,0]]},
-OUT_Z_L:{address:'0x2C',fields:[['Z low',7,0]]},OUT_Z_H:{address:'0x2D',fields:[['Z high',7,0]]}
+const registerInfo={
+  WHO_AM_I:{address:0x0F,bits:['ID7','ID6','ID5','ID4','ID3','ID2','ID1','ID0']},
+  CTRL1:{address:0x20,bits:['ODR3','ODR2','ODR1','ODR0',null,null,null,null],writable:[7,6,5,4]},
+  CTRL2:{address:0x21,bits:[null,null,null,null,null,'IF_ADD_INC',null,null],writable:[2]},
+  CTRL4_INT1_PAD_CTRL:{address:0x23,bits:[null,null,null,null,null,null,null,'INT1_DRDY'],writable:[0]},
+  STATUS:{address:0x27,bits:[null,null,null,null,null,null,null,'DRDY']},
+  OUT_X_L:{address:0x28,bits:['X_L7','X_L6','X_L5','X_L4','X_L3','X_L2','X_L1','X_L0']},
+  OUT_X_H:{address:0x29,bits:['X_H7','X_H6','X_H5','X_H4','X_H3','X_H2','X_H1','X_H0']},
+  OUT_Y_L:{address:0x2A,bits:['Y_L7','Y_L6','Y_L5','Y_L4','Y_L3','Y_L2','Y_L1','Y_L0']},
+  OUT_Y_H:{address:0x2B,bits:['Y_H7','Y_H6','Y_H5','Y_H4','Y_H3','Y_H2','Y_H1','Y_H0']},
+  OUT_Z_L:{address:0x2C,bits:['Z_L7','Z_L6','Z_L5','Z_L4','Z_L3','Z_L2','Z_L1','Z_L0']},
+  OUT_Z_H:{address:0x2D,bits:['Z_H7','Z_H6','Z_H5','Z_H4','Z_H3','Z_H2','Z_H1','Z_H0']}
 };
+const state={registers:{},orientation:[1,0,0,0],dragging:false};
 const hex=n=>'0x'+n.toString(16).toUpperCase().padStart(2,'0');
-const binary=(n,width=8)=>n.toString(2).padStart(width,'0');
-const renderFields=(name,value)=>info[name].fields.map(([field,msb,lsb])=>{const width=msb-lsb+1,v=(value>>lsb)&((1<<width)-1),range=msb===lsb?`b${msb}`:`b${msb}:${lsb}`;return `<div class="field"><b>${field} <span>${range}</span></b><em>${v}</em><code>${binary(v,width)}</code></div>`}).join('');
-async function update(){try{const r=await fetch('/api/state',{cache:'no-store'}),s=await r.json();if(!r.ok||s.error)throw Error(s.error||'request failed');document.querySelector('#status').textContent=s.seconds.toFixed(2)+' s';document.querySelector('#registers').innerHTML=Object.entries(s.registers).sort(([a],[b])=>parseInt(info[a].address)-parseInt(info[b].address)).map(([name,value])=>`<article class="reg"><small>${info[name].address}</small><span>${name}</span><strong>${hex(value)}</strong><div class="binary">${binary(value)}</div><div class="fields">${renderFields(name,value)}</div></article>`).join('');document.querySelector('#uart').textContent=s.uart.join('\n')||'Waiting for firmware...';}catch(e){document.querySelector('#status').textContent='DISCONNECTED';}}
-setInterval(update,200);update();
+function renderRegisters(){
+  const rows=Object.entries(state.registers).filter(([name])=>registerInfo[name]).sort(([a],[b])=>registerInfo[a].address-registerInfo[b].address);
+  document.querySelector('#registers').innerHTML=rows.map(([name,value])=>{
+    const meta=registerInfo[name];
+    const bits=meta.bits.map((label,index)=>{
+      const bit=7-index,enabled=(value>>bit)&1,writable=(meta.writable||[]).includes(bit);
+      return `<div class="bit ${enabled?'active':''} ${writable?'writable':''}" data-address="${meta.address}" data-bit="${bit}"><small>${label||'--'}</small><b>${enabled}</b><small>bit ${bit}</small></div>`;
+    }).join('');
+    return `<article class="reg"><div class="reg-title"><strong>${name}</strong><span>${hex(meta.address)}</span></div><div class="bits">${bits}</div><div class="hex">${hex(value)}</div></article>`;
+  }).join('');
+}
+async function post(path,payload){
+  const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'request failed');
+  return result;
+}
+document.querySelector('#registers').addEventListener('click',async event=>{
+  const cell=event.target.closest('.writable'); if(!cell)return;
+  const address=Number(cell.dataset.address),bit=Number(cell.dataset.bit);
+  const name=Object.keys(registerInfo).find(key=>registerInfo[key].address===address);
+  try{await post('/api/register',{address,value:state.registers[name]^(1<<bit)});await update();}catch(error){showError(error);}
+});
+function readInputs(){return ['x','y','z'].map(axis=>Math.max(-32768,Math.min(32767,Number(document.querySelector('#sample-'+axis).value)||0)));}
+async function applySample(){const [x,y,z]=readInputs();try{await post('/api/sample',{x,y,z});await update();}catch(error){showError(error);}}
+document.querySelector('#apply-sample').addEventListener('click',applySample);
+const vectorOrigin=[170,205],vectorScale=156,axisScale=136;
+function gravityComponents(){
+  return sensorAxes().map(axis=>axis[2]);
+}
+function sensorAxes(){
+  const [w,x,y,z]=state.orientation;
+  const xx=x*x,yy=y*y,zz=z*z,xy=x*y,xz=x*z,yz=y*z,wx=w*x,wy=w*y,wz=w*z;
+  return [
+    [1-2*(yy+zz),2*(xy+wz),2*(xz-wy)],
+    [2*(xy-wz),1-2*(xx+zz),2*(yz+wx)],
+    [2*(xz+wy),2*(yz-wx),1-2*(xx+yy)]
+  ];
+}
+const viewRight=normalize([-1,1,0]),viewUp=[0,0,1],viewToward=normalize([1,1,0]);
+function project(vector,scale=vectorScale){return [scale*dot(vector,viewRight),-scale*dot(vector,viewUp)];}
+function endpoint(vector,scale=vectorScale){const point=project(vector,scale);return [vectorOrigin[0]+point[0],vectorOrigin[1]+point[1]];}
+function setLine(id,start,end){const line=document.querySelector('#'+id);line.setAttribute('x1',start[0]);line.setAttribute('y1',start[1]);line.setAttribute('x2',end[0]);line.setAttribute('y2',end[1]);}
+function drawVectors(){
+  const axes=sensorAxes(),components=gravityComponents(),result=endpoint([0,0,1]);
+  const names=['x','y','z'],componentEnds=[];
+  names.forEach((name,index)=>{
+    const axisEnd=endpoint(axes[index],axisScale);setLine('axis-'+name,vectorOrigin,axisEnd);
+    const label=document.querySelector('#label-'+name);label.setAttribute('x',axisEnd[0]+4);label.setAttribute('y',axisEnd[1]-3);
+    const componentWorld=axes[index].map(value=>value*components[index]);const componentEnd=endpoint(componentWorld);
+    componentEnds.push(componentEnd);setLine('component-'+name,vectorOrigin,componentEnd);
+    document.querySelector('#g'+name).textContent=name.toUpperCase()+' '+(components[index]>=0?'+':'')+components[index].toFixed(2)+' g';
+  });
+  setLine('resultant',vectorOrigin,result);const resultLabel=document.querySelector('#result-label');resultLabel.setAttribute('x',result[0]+6);resultLabel.setAttribute('y',result[1]+3);
+  names.forEach((name,index)=>setLine('guide-'+name,componentEnds[index],result));
+  const visible=document.querySelector('#show-vectors').checked;document.querySelector('#axis-vectors').style.display=visible?'':'none';
+  document.querySelector('#projection-guides').style.display=visible&&document.querySelector('#show-guides').checked?'':'none';
+}
+function dot(left,right){return left[0]*right[0]+left[1]*right[1]+left[2]*right[2];}
+function cssRotationMatrix(){
+  const axes=sensorAxes();
+  const columns=axes.map(axis=>[dot(axis,viewRight),-dot(axis,viewUp),-dot(axis,viewToward),0]);
+  return `matrix3d(${columns.flat().join(',')},0,0,0,1)`;
+}
+function updateCube(){
+  document.querySelector('#cube').style.transform=cssRotationMatrix();
+  const tilt=Math.acos(Math.max(-1,Math.min(1,gravityComponents()[2])))*180/Math.PI;
+  document.querySelector('#tilt').textContent=`tilt ${Math.round(tilt)}deg`;
+  drawVectors();
+}
+let sampleTimer;
+function projectGravity(){
+  const values=gravityComponents().map(value=>Math.round(value*16384));
+  ['x','y','z'].forEach((axis,index)=>document.querySelector('#sample-'+axis).value=values[index]);
+  clearTimeout(sampleTimer);sampleTimer=setTimeout(applySample,80);
+}
+function normalize(vector){const length=Math.hypot(...vector);return vector.map(value=>value/length);}
+function trackballPoint(event){
+  const bounds=scene.getBoundingClientRect(),radius=Math.min(bounds.width,bounds.height)*.5;
+  let x=(event.clientX-(bounds.left+bounds.width*.5))/radius;
+  let y=((bounds.top+bounds.height*.5)-event.clientY)/radius;
+  const lengthSquared=x*x+y*y;
+  if(lengthSquared>1){const length=Math.sqrt(lengthSquared);x/=length;y/=length;return [x,y,0];}
+  return [x,y,Math.sqrt(1-lengthSquared)];
+}
+function trackballPointInWorld(event){
+  const point=trackballPoint(event);
+  return [0,1,2].map(index=>viewRight[index]*point[0]+viewUp[index]*point[1]+viewToward[index]*point[2]);
+}
+function quaternionBetween(from,to){
+  const cross=[from[1]*to[2]-from[2]*to[1],from[2]*to[0]-from[0]*to[2],from[0]*to[1]-from[1]*to[0]];
+  return normalize([1+dot(from,to),...cross]);
+}
+function multiplyQuaternion(left,right){
+  const [lw,lx,ly,lz]=left,[rw,rx,ry,rz]=right;
+  return normalize([lw*rw-lx*rx-ly*ry-lz*rz,lw*rx+lx*rw+ly*rz-lz*ry,lw*ry-lx*rz+ly*rw+lz*rx,lw*rz+lx*ry-ly*rx+lz*rw]);
+}
+const scene=document.querySelector('#scene');let previousTrackballPoint;
+scene.addEventListener('pointerdown',event=>{state.dragging=true;previousTrackballPoint=trackballPointInWorld(event);scene.setPointerCapture(event.pointerId);});
+scene.addEventListener('pointermove',event=>{if(!state.dragging)return;const currentPoint=trackballPointInWorld(event);state.orientation=multiplyQuaternion(quaternionBetween(previousTrackballPoint,currentPoint),state.orientation);previousTrackballPoint=currentPoint;updateCube();projectGravity();});
+scene.addEventListener('pointerup',()=>{state.dragging=false;previousTrackballPoint=null;});scene.addEventListener('pointercancel',()=>{state.dragging=false;previousTrackballPoint=null;});
+document.querySelector('#reset-view').addEventListener('click',()=>{state.orientation=[1,0,0,0];updateCube();projectGravity();});
+document.querySelector('#show-vectors').addEventListener('change',drawVectors);document.querySelector('#show-guides').addEventListener('change',drawVectors);
+function showError(error){document.querySelector('#status').textContent='ERROR: '+error.message;}
+async function update(){
+  try{
+    const response=await fetch('/api/state',{cache:'no-store'}),snapshot=await response.json();if(!response.ok||snapshot.error)throw Error(snapshot.error||'request failed');
+    state.registers=snapshot.registers;document.querySelector('#status').textContent=snapshot.seconds.toFixed(2)+' s';renderRegisters();
+    document.querySelector('#uart').textContent=snapshot.uart.join('\n')||'Waiting for firmware...';
+    const irq=document.querySelector('#irq');irq.textContent='INT1 '+(snapshot.interrupt1?'HIGH':'LOW');irq.classList.toggle('high',snapshot.interrupt1);
+    if(!state.dragging&&document.activeElement.tagName!=='INPUT'){['x','y','z'].forEach(axis=>document.querySelector('#sample-'+axis).value=snapshot.sample[axis]);}
+  }catch(error){document.querySelector('#status').textContent='DISCONNECTED';}
+}
+setInterval(update,250);updateCube();update();
 </script>
 </html>

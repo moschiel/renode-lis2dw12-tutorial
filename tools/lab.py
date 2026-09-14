@@ -1,4 +1,4 @@
-"""Run a small read-only web view of the LIS2DW12 model and firmware UART."""
+"""Run a small interactive web view of the LIS2DW12 model and firmware UART."""
 import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,16 +33,35 @@ class Lab:
         with self.lock:
             return dict(self.snapshot, error=self.error)
 
+    def set_sample(self, x, y, z):
+        with self.lock:
+            self.renode.set_sample(x, y, z)
+            self.snapshot = self.renode.state()
+
+    def write_register(self, address, value):
+        with self.lock:
+            self.renode.write_register(address, value)
+            self.snapshot = self.renode.state()
+
 
 def handler_for(lab):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
 
+        def send_json(self, value, status=200):
+            payload = json.dumps(value).encode()
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(payload)
+
         def do_GET(self):
             if self.path == '/api/state':
-                payload = json.dumps(lab.state()).encode()
-                content_type = 'application/json'
+                self.send_json(lab.state())
+                return
             elif self.path in ('/', '/index.html'):
                 payload = (ROOT / 'web/index.html').read_bytes()
                 content_type = 'text/html; charset=utf-8'
@@ -55,6 +74,23 @@ def handler_for(lab):
             self.send_header('Cache-Control', 'no-store')
             self.end_headers()
             self.wfile.write(payload)
+
+        def do_POST(self):
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if length > 4096:
+                    raise ValueError('request too large')
+                body = json.loads(self.rfile.read(length) or b'{}')
+                if self.path == '/api/sample':
+                    lab.set_sample(int(body['x']), int(body['y']), int(body['z']))
+                elif self.path == '/api/register':
+                    lab.write_register(int(body['address']), int(body['value']))
+                else:
+                    self.send_error(404)
+                    return
+                self.send_json(lab.state())
+            except (KeyError, TypeError, ValueError) as error:
+                self.send_json({'error': str(error)}, 400)
     return Handler
 
 

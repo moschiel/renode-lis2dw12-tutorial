@@ -89,6 +89,20 @@ class Renode:
             state['seconds'] = round(self.seconds, 3)
             return state
 
+    def set_sample(self, x, y, z):
+        with self.lock:
+            self.execute(
+                "python \"monitor.Machine['sysbus.i2c1.accel'].SetSample(%d, %d, %d)\""
+                % (int(x), int(y), int(z))
+            )
+
+    def write_register(self, address, value):
+        with self.lock:
+            self.execute(
+                "python \"monitor.Machine['sysbus.i2c1.accel'].WriteRegister(%d, %d)\""
+                % (int(address), int(value))
+            )
+
     def close(self):
         if self.process is not None and self.process.poll() is None:
             self.process.terminate()

@@ -68,8 +68,13 @@ static void MX_USART2_UART_Init(void);
 
 #define LIS2DW12_I2C_ADDRESS (0x18 << 1)
 #define LIS2DW12_WHO_AM_I 0x0F
+#define LIS2DW12_CTRL1 0x20
 #define LIS2DW12_CTRL2 0x21
+#define LIS2DW12_CTRL4 0x23
+#define LIS2DW12_STATUS 0x27
 #define LIS2DW12_OUT_X_L 0x28
+
+static volatile uint8_t dataReadyInterruptSeen;
 
 static void ValidateWhoAmI(void)
 {
@@ -190,6 +195,59 @@ static void ValidateAutoIncrement(void)
                     sizeof(successMessage) - 1, 100);
 }
 
+static void ValidateDataReadyPolling(void)
+{
+  uint8_t ctrl1 = 0x20;
+  uint8_t status = 0;
+  const uint8_t successMessage[] = "DRDY_POLL: PASS\r\n";
+  const uint8_t errorMessage[] = "DRDY_POLL: ERROR\r\n";
+  const uint8_t *message = errorMessage;
+  uint16_t messageSize = sizeof(errorMessage) - 1;
+
+  if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
+                        I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) == HAL_OK
+      && HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_STATUS,
+                          I2C_MEMADD_SIZE_8BIT, &status, 1, 100) == HAL_OK
+      && (status & 0x01) != 0)
+  {
+    message = successMessage;
+    messageSize = sizeof(successMessage) - 1;
+  }
+
+  HAL_UART_Transmit(&huart2, (uint8_t *)message, messageSize, 100);
+}
+
+static void ValidateDataReadyInterrupt(void)
+{
+  uint8_t ctrl4 = 0x01;
+  uint32_t startedAt = HAL_GetTick();
+  const uint8_t successMessage[] = "DRDY_INT1: PASS\r\n";
+  const uint8_t errorMessage[] = "DRDY_INT1: ERROR\r\n";
+
+  dataReadyInterruptSeen = 0;
+  if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL4,
+                        I2C_MEMADD_SIZE_8BIT, &ctrl4, 1, 100) == HAL_OK)
+  {
+    while (!dataReadyInterruptSeen && (HAL_GetTick() - startedAt) < 10)
+    {
+    }
+  }
+
+  const uint8_t *message = dataReadyInterruptSeen ? successMessage : errorMessage;
+  uint16_t messageSize = dataReadyInterruptSeen
+      ? sizeof(successMessage) - 1
+      : sizeof(errorMessage) - 1;
+  HAL_UART_Transmit(&huart2, (uint8_t *)message, messageSize, 100);
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == PB1_RESERVED_Pin)
+  {
+    dataReadyInterruptSeen = 1;
+  }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -230,6 +288,8 @@ int main(void)
   ValidateWhoAmI();
   ValidateXyzRead();
   ValidateAutoIncrement();
+  ValidateDataReadyPolling();
+  ValidateDataReadyInterrupt();
 
   /* USER CODE END 2 */
 

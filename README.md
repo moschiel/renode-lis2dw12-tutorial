@@ -9,11 +9,11 @@ as an architectural reference and for comparison. The tutorial reconstructs a
 possible development process; it does not describe the original authors' thoughts.
 Hardware behavior comes from the [ST DS11811 Rev. 9 datasheet](https://www.st.com/resource/en/datasheet/lis2dw12.pdf).
 
-The scope is a reduced but practical polling flow: identify the device, apply
-basic initialization, report data-ready status, and read XYZ samples. The same
-firmware is run against our model and Renode's official model for comparison.
+The scope is a reduced but practical flow: identify the device, apply basic
+initialization, read XYZ samples, and observe data-ready by polling or interrupt.
+The same firmware is run against our model and Renode's official model for comparison.
 The GUI and utility scripts are 100% *vibe coded* support assets and are not
-part of the modeling lesson. See [Limits and References](#7-limits-and-references)
+part of the modeling lesson. See [Limits and References](#8-limits-and-references)
 for the detailed boundaries.
 
 Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
@@ -42,10 +42,19 @@ register maps and transaction state.
   - [4.1 IF_ADD_INC behavior](#41-if_add_inc-behavior)
   - [4.2 Define CTRL2](#42-define-ctrl2)
   - [4.3 Validate both reading styles](#43-validate-both-reading-styles)
-- [5. Configure sample acquisition](#5-configure-sample-acquisition-work-in-progress)
-- [6. Optional web view](#6-optional-web-view-vibe-coded)
-- [7. Limits and References](#7-limits-and-references)
-  - [7.1 Optional model comparison](#71-optional-model-comparison)
+- [5. Configure acquisition and poll data-ready](#5-configure-acquisition-and-poll-data-ready)
+  - [5.1 ODR and DRDY behavior](#51-odr-and-drdy-behavior)
+  - [5.2 Define CTRL1 and STATUS](#52-define-ctrl1-and-status)
+  - [5.3 Validate polling](#53-validate-polling)
+  - [5.4 Check the STM32 firmware](#54-check-the-stm32-firmware)
+- [6. Route data-ready to INT1](#6-route-data-ready-to-int1)
+  - [6.1 Interrupt behavior](#61-interrupt-behavior)
+  - [6.2 Define CTRL4 and Interrupt1](#62-define-ctrl4-and-interrupt1)
+  - [6.3 Connect INT1 to the STM32](#63-connect-int1-to-the-stm32)
+  - [6.4 Validate the interrupt path](#64-validate-the-interrupt-path)
+- [7. Optional interactive web view](#7-optional-interactive-web-view-vibe-coded)
+- [8. Limits and References](#8-limits-and-references)
+  - [8.1 Optional model comparison](#81-optional-model-comparison)
 
 ## 1. Set up the project and I2C skeleton
 
@@ -793,34 +802,230 @@ XYZ: 1000,-500,16384
 IF_ADD_INC: PASS
 ```
 
-## 5. Configure sample acquisition (work in progress)
+## 5. Configure acquisition and poll data-ready
 
-## 6. Optional web view (vibe-coded)
+### 5.1 ODR and DRDY behavior
 
+The `ODR` field in `CTRL1` (`0x20`) controls whether the sensor is in power-down
+or acquisition mode. `STATUS.DRDY` (`0x27`, bit 0) reports that XYZ data is
+available. See datasheet sections **8.4** and **8.11**.
 
-The supplied read-only panel displays each implemented register as hexadecimal
-and binary, decodes its named fields, and shows the real USART2 output. It is a
-visualization aid, not part of the modeling lesson:
+This reduced model keeps the digital dependency used by polling firmware. It
+does not simulate the different sampling frequencies encoded by non-zero `ODR`
+values:
+
+| `CTRL1.ODR` | Mode | `STATUS.DRDY` |
+|---|---|---|
+| `0000` | Power-down | `0` |
+| Any non-zero value | Acquisition active | `1` |
+
+### 5.2 Define CTRL1 and STATUS
+
+Add these definitions after `WHO_AM_I`:
+
+```csharp
+// DS11811 Rev. 9, datasheet section 8.4: ODR=0 selects power-down.
+RegistersCollection.DefineRegister(0x20, 0x00)
+    .WithValueField(4, 4, out outputDataRate, name: "ODR");
+
+// DS11811 Rev. 9, datasheet section 8.11: DRDY reports XYZ availability.
+RegistersCollection.DefineRegister(0x27, 0x00)
+    .WithFlag(0, FieldMode.Read,
+        valueProviderCallback: _ => AcquisitionEnabled, name: "DRDY");
+```
+
+The `valueProviderCallback` calculates `DRDY` when firmware reads `STATUS`; the
+bit does not need separate storage. Add the field handle and the reduced state:
+
+```csharp
+public bool AcquisitionEnabled => outputDataRate.Value != 0;
+
+private IValueRegisterField outputDataRate;
+```
+
+Fields in these registers that do not affect the demonstrated polling flow are
+deliberately outside this stage.
+
+### 5.3 Validate polling
+
+`tests/sample_acquisition.resc` checks reset, a non-zero `ODR`, and a return to
+power-down. Its comments show the direct register transactions:
+
+```sh
+renode --console --disable-gui --plain tests/sample_acquisition.resc
+```
+
+**Expected:** `PASS sample_acquisition: ODR controls DRDY`.
+
+### 5.4 Check the STM32 firmware
+
+The supplied firmware enables acquisition and polls bit 0 of `STATUS`:
+
+```c
+uint8_t ctrl1 = 0x20;
+uint8_t status = 0;
+
+HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
+                  I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100);
+HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_STATUS,
+                 I2C_MEMADD_SIZE_8BIT, &status, 1, 100);
+```
+
+Run the cumulative check through polling:
+
+```sh
+renode --console --disable-gui --plain tests/firmware_polling.resc
+```
+
+**Expected:** `PASS firmware: data-ready polling`. The new UART line is
+`DRDY_POLL: PASS`.
+
+## 6. Route data-ready to INT1
+
+### 6.1 Interrupt behavior
+
+Polling works, but firmware can instead ask the sensor to signal new data on a
+pin. `CTRL4_INT1_PAD_CTRL.INT1_DRDY` (`0x23`, bit 0) routes data-ready to
+`INT1`; see datasheet section **8.7**.
+
+For this tutorial, the output is the logical AND of the two states already
+modeled:
+
+| Acquisition active | `INT1_DRDY` | `INT1` |
+|---:|---:|---:|
+| `0` | `0` or `1` | `0` |
+| `1` | `0` | `0` |
+| `1` | `1` | `1` |
+
+### 6.2 Define CTRL4 and Interrupt1
+
+Import the GPIO type, create the output, and expose it so the REPL platform can
+connect it:
+
+```csharp
+using Antmicro.Renode.Core;
+
+// In the constructor, before defining the registers:
+Interrupt1 = new GPIO();
+
+public GPIO Interrupt1 { get; }
+```
+
+Define the routing bit and recalculate the pin whenever firmware changes it:
+
+```csharp
+// DS11811 Rev. 9, datasheet section 8.7: this stage models only INT1_DRDY.
+RegistersCollection.DefineRegister(0x23, 0x00)
+    .WithFlag(0, out dataReadyInterruptEnabled, name: "INT1_DRDY")
+    .WithWriteCallback((_, __) => UpdateInterrupt1());
+```
+
+Also append the same callback to the existing `CTRL1` definition. Either side
+of the logical AND can then update the output:
+
+```csharp
+private void UpdateInterrupt1()
+{
+    Interrupt1.Set(AcquisitionEnabled && dataReadyInterruptEnabled.Value);
+}
+
+private IFlagRegisterField dataReadyInterruptEnabled;
+```
+
+Finally, add `Interrupt1.Unset();` to `Reset()` so a hardware reset clears the
+external pin.
+
+### 6.3 Connect INT1 to the STM32
+
+Create a platform variant that connects the sensor output to STM32 GPIO `PB1`.
+The supplied CubeMX project configures this pin as a rising-edge EXTI input:
+
+<!-- tutorial-file: platforms/stm32_lis2dw12_interrupt.repl -->
+```repl
+using "platforms/cpus/stm32l072.repl"
+
+accel: Tutorial.LIS2DW12 @ i2c1 0x18
+    Interrupt1 -> gpioPortB@1
+```
+
+In REPL syntax, the indented connection means that the `Interrupt1` GPIO from
+`accel` is wired to pin 1 of the STM32 GPIO port B.
+
+### 6.4 Validate the interrupt path
+
+First test the model without firmware. `tests/data_ready_interrupt.resc` covers
+both inputs of the logical AND and hardware reset:
+
+```sh
+renode --console --disable-gui --plain tests/data_ready_interrupt.resc
+```
+
+**Expected:** `PASS data_ready_interrupt: CTRL1 and CTRL4 drive INT1`.
+
+The firmware enables `INT1_DRDY`, waits for the GPIO callback, and reports the
+result through USART2:
+
+```c
+dataReadyInterruptSeen = 0;
+HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL4,
+                  I2C_MEMADD_SIZE_8BIT, &ctrl4, 1, 100);
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == PB1_RESERVED_Pin)
+  {
+    dataReadyInterruptSeen = 1;
+  }
+}
+```
+
+Run the complete firmware path:
+
+```sh
+renode --console --disable-gui --plain tests/firmware_custom.resc
+```
+
+**Expected:** `PASS firmware: data-ready interrupt`. The final UART lines are
+`DRDY_POLL: PASS` and `DRDY_INT1: PASS`.
+
+## 7. Optional interactive web view (vibe-coded)
+
+The supplied panel displays only implemented registers, with one cell per bit
+and the hexadecimal value beside it. Writable modeled fields can be toggled,
+raw samples can be injected, and the real USART2 and `INT1` states remain
+visible.
+
+The draggable 3D package projects Earth's gravity onto X, Y, and Z for a
+stationary sensor, then calls the model's public `SetSample` API. This visual
+tool follows the datasheet axis convention: X and Y lie in the package plane,
+while +Z is normal to its top face. Optional overlays show the three vector
+components and dashed projection guides. It is deliberately independent from
+the model and is not a physics lesson:
+
+`SetSample`, `ReadRegister`, and `WriteRegister` are public integration points
+for automated tests and this optional GUI. Their comments in the model make it
+clear when an operation bypasses the I2C master.
 
 ```sh
 python tools/lab.py
 ```
 
-It opens [localhost:8000](http://127.0.0.1:8000). As later registers are
-implemented, they will be added to this same view. Stop it with `Ctrl+C`.
+It opens [localhost:8000](http://127.0.0.1:8000). Stop it with `Ctrl+C`.
 
-## 7. Limits and References
+## 8. Limits and References
 
 
-This tutorial implements the common polling path: device identification, basic
-initialization, data-ready status, and XYZ sample reads. Configuration affects
-the model only when the demonstrated firmware observes that effect. Other fields
-may be tagged, stored, or return a documented default without a dedicated test.
+This tutorial implements a common acquisition path: device identification, basic
+initialization, data-ready polling and interrupt, and XYZ sample reads.
+Configuration affects the model only when the demonstrated firmware observes
+that effect. Other fields may be tagged, stored, or return a documented default
+without a dedicated test.
 
 Electrical characteristics, analog filtering, noise, power consumption, and
 exact physical performance are not simulated. FIFO, tap, free-fall, orientation,
-wake-up, self-test, and temperature features are outside this tutorial. SPI also
-remains outside the transport scope.
+wake-up, self-test, and temperature features are outside the sensor model. The
+optional GUI only calculates a gravity vector and injects it as a raw sample.
+SPI also remains outside the transport scope.
 
 The result is a teaching model for representative Renode patterns, not a complete
 replacement for the device. Comparisons cover the demonstrated firmware and
@@ -831,7 +1036,7 @@ configurations, not arbitrary LIS2DW12 drivers.
 - [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
 - [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
 
-### 7.1 Optional model comparison
+### 8.1 Optional model comparison
 
 At the end of the tutorial, `tests/compare_models.resc` can be used to run the
 cumulative checks against both `Tutorial.LIS2DW12` and Renode's official
@@ -853,3 +1058,11 @@ renode --console --disable-gui --plain tests/firmware_reference.resc
 
 **Expected:** `PASS reference firmware: I2C transactions complete; stimulus
 difference observed`.
+
+<!-- tutorial-file: platforms/stm32_lis2dw12_reference.repl -->
+```repl
+using "platforms/cpus/stm32l072.repl"
+
+accel: Sensors.LIS2DW12 @ i2c1 0x18
+    Interrupt1 -> gpioPortB@1
+```

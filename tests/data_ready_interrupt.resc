@@ -1,0 +1,25 @@
+include @scripts/accel_isolated.resc
+python "from System import Array, Byte"
+python "dev = monitor.Machine['sysbus.accel']"
+
+# Routing alone does not assert INT1 while the device is in power-down.
+python "dev.Write(Array[Byte]([0x23, 0x01]))"
+python "assert not dev.Interrupt1.IsSet, 'INT1 asserted while acquisition was disabled'"
+
+# Enabling acquisition makes DRDY active and routes it to INT1.
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x20]))"
+python "assert dev.Interrupt1.IsSet, 'INT1 did not follow enabled DRDY routing'"
+
+# Either side of the logical AND can deassert the pin.
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x23, 0x00]))"
+python "assert not dev.Interrupt1.IsSet, 'INT1 ignored disabled routing'"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x23, 0x01]))"
+python "assert dev.Interrupt1.IsSet, 'INT1 did not reassert'"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x00]))"
+python "assert not dev.Interrupt1.IsSet, 'INT1 ignored power-down'"
+
+python "dev.Reset()"
+python "assert not dev.Interrupt1.IsSet, 'hardware reset did not clear INT1'"
+
+echo "PASS data_ready_interrupt: CTRL1 and CTRL4 drive INT1"
+quit

@@ -22,11 +22,32 @@ def mc_assert_xyz_uart():
 
 def mc_assert_auto_increment_uart():
     expected = ['WHO_AM_I: 0x44', 'XYZ: 1000,-500,16384', 'IF_ADD_INC: PASS']
-    assert uart_lines == expected, 'UART mismatch: ' + str(uart_lines)
+    assert uart_lines[:3] == expected, 'UART mismatch: ' + str(uart_lines)
     print('PASS firmware: WHO_AM_I, XYZ, and IF_ADD_INC')
 
 
+def mc_assert_data_ready_polling_uart():
+    expected = [
+        'WHO_AM_I: 0x44', 'XYZ: 1000,-500,16384', 'IF_ADD_INC: PASS',
+        'DRDY_POLL: PASS',
+    ]
+    assert uart_lines[:4] == expected, 'UART mismatch: ' + str(uart_lines)
+    print('PASS firmware: data-ready polling')
+
+
+def mc_assert_data_ready_interrupt_uart():
+    expected = [
+        'WHO_AM_I: 0x44', 'XYZ: 1000,-500,16384', 'IF_ADD_INC: PASS',
+        'DRDY_POLL: PASS', 'DRDY_INT1: PASS',
+    ]
+    assert uart_lines == expected, 'UART mismatch: ' + str(uart_lines)
+    print('PASS firmware: data-ready interrupt')
+
+
 def mc_assert_reference_auto_increment_uart():
-    expected = ['WHO_AM_I: 0x44', 'XYZ: ERROR', 'IF_ADD_INC: ERROR']
+    expected = [
+        'WHO_AM_I: 0x44', 'XYZ: ERROR', 'IF_ADD_INC: ERROR',
+        'DRDY_POLL: PASS', 'DRDY_INT1: PASS',
+    ]
     assert uart_lines == expected, 'UART mismatch: ' + str(uart_lines)
     print('PASS reference firmware: I2C transactions complete; stimulus difference observed')

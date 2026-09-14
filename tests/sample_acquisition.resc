@@ -1,0 +1,25 @@
+include @scripts/accel_isolated.resc
+python "from System import Array, Byte"
+python "dev = monitor.Machine['sysbus.accel']"
+
+# DS11811 Rev. 9, sections 8.4 and 8.11: power-down reports no data ready.
+python "dev.Write(Array[Byte]([0x20]))"
+python "assert list(dev.Read(1)) == [0x00], 'CTRL1 reset value mismatch'"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "assert list(dev.Read(1)) == [0x00], 'DRDY must be clear in power-down'"
+
+# Select a non-zero ODR. The simplified model stores the code but does not
+# simulate its physical rate; STATUS.DRDY now reports data available.
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x20]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20]))"
+python "assert list(dev.Read(1)) == [0x20], 'CTRL1 ODR write mismatch'"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "assert list(dev.Read(1)) == [0x01], 'DRDY must be set while acquisition is active'"
+
+# Returning ODR to zero returns the device to power-down.
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x00]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "assert list(dev.Read(1)) == [0x00], 'DRDY did not clear in power-down'"
+
+echo "PASS sample_acquisition: ODR controls DRDY"
+quit
