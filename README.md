@@ -698,20 +698,11 @@ flowchart LR
 Add the register after `WHO_AM_I`:
 
 ```csharp
-// DS11811 Rev. 9, datasheet section 8.5: only IF_ADD_INC affects behavior here.
-// Tagged fields preserve the remaining layout without simulating it.
-RegistersCollection.DefineRegister(0x21, 0x04)
-    .WithTaggedFlag("SIM", 0)
-    .WithTaggedFlag("I2C_DISABLE", 1)
-    .WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC")
-    .WithTaggedFlag("BDU", 3)
-    .WithTaggedFlag("CS_PU_DISC", 4)
-    .WithReservedBits(5, 1)
-    .WithTaggedFlag("SOFT_RESET", 6)
-    .WithTaggedFlag("BOOT", 7);
+// DS11811 Rev. 9, datasheet section 8.5: this stage models only IF_ADD_INC.
+RegistersCollection.DefineRegister(0x21, 0x04).WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC");
 ```
 
-`WithTaggedFlag` documents fields whose behavior is outside this stage. Declare:
+Only `IF_ADD_INC` is in scope for this tutorial section. Declare its handle:
 
 ```csharp
 private IFlagRegisterField automaticAddressIncrement;

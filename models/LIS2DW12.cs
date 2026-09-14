@@ -22,18 +22,8 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             RegistersCollection.DefineRegister(0x2B, 0x00).WithValueField(0, 8, out outputYHigh, FieldMode.Read, name: "OUT_Y_H");
             RegistersCollection.DefineRegister(0x2C, 0x00).WithValueField(0, 8, out outputZLow, FieldMode.Read, name: "OUT_Z_L");
             RegistersCollection.DefineRegister(0x2D, 0x00).WithValueField(0, 8, out outputZHigh, FieldMode.Read, name: "OUT_Z_H");
-            // DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior.
-            // Tagged fields preserve the documented layout without simulating
-            // features that are outside this tutorial's common polling path.
-            RegistersCollection.DefineRegister(0x21, 0x04)
-                .WithTaggedFlag("SIM", 0)
-                .WithTaggedFlag("I2C_DISABLE", 1)
-                .WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC")
-                .WithTaggedFlag("BDU", 3)
-                .WithTaggedFlag("CS_PU_DISC", 4)
-                .WithReservedBits(5, 1)
-                .WithTaggedFlag("SOFT_RESET", 6)
-                .WithTaggedFlag("BOOT", 7);
+            // DS11811 Rev. 9, datasheet section 8.5: this stage models only IF_ADD_INC.
+            RegistersCollection.DefineRegister(0x21, 0x04).WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC");
             Reset();
         }
 

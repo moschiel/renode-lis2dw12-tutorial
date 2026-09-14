@@ -71,8 +71,8 @@ def write_model_for_stage(destination, stage):
     elif stage == "stage3":
         source = (ROOT / "models" / "LIS2DW12.cs").read_text(encoding="utf-8")
         control2 = re.compile(
-            r"            // DS11811 Rev\. 9, section 8\.5: only IF_ADD_INC affects behavior\.\n"
-            r"(?:.*\n)*?                \.WithTaggedFlag\(\"BOOT\", 7\);\n"
+            r"            // DS11811 Rev\. 9, datasheet section 8\.5: this stage models only IF_ADD_INC\.\n"
+            r"            RegistersCollection\.DefineRegister\(0x21, 0x04\)\.WithFlag\(2, out automaticAddressIncrement, name: \"IF_ADD_INC\"\);\n"
         )
         source, removed = control2.subn("", source, count=1)
         if removed != 1:
