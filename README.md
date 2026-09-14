@@ -887,13 +887,20 @@ RegistersCollection.DefineRegister((byte)RegisterId.Status, 0x00)
         valueProviderCallback: _ => dataReady, name: "DRDY");
 ```
 
-The callback returns the pending event whenever firmware reads `STATUS`. Add
-the acquisition state and make `SetSample` reproduce the observable effect of
-a completed conversion:
+The callback returns the pending event whenever firmware reads `STATUS`. First,
+add the acquisition state and its field at class scope:
 
 ```csharp
 public bool AcquisitionEnabled => outputDataRate.Value != 0;
 
+private IValueRegisterField outputDataRate;
+private bool dataReady;
+```
+
+Section 3 already added a simpler `SetSample` method. **Replace that entire
+method** with the version below; do not keep both implementations:
+
+```csharp
 public void SetSample(int x, int y, int z)
 {
     // CTRL1.ODR=0 is power-down, so no conversion can update the output registers.
@@ -909,7 +916,11 @@ public void SetSample(int x, int y, int z)
     // A completed conversion makes a new XYZ set available to firmware.
     dataReady = true;
 }
+```
 
+Finally, add the configuration callback as a new private method:
+
+```csharp
 private void HandleAcquisitionConfigurationChanged()
 {
     // Entering power-down invalidates any pending data-ready indication.
@@ -918,9 +929,6 @@ private void HandleAcquisitionConfigurationChanged()
         dataReady = false;
     }
 }
-
-private IValueRegisterField outputDataRate;
-private bool dataReady;
 ```
 
 Also set `dataReady = false;` at the beginning of `Reset()` so a hardware reset
