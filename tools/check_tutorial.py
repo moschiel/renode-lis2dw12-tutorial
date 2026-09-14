@@ -30,7 +30,7 @@ CHECKS = [
     ("tests/sample_acquisition.resc", "PASS sample_acquisition: ODR controls DRDY", "stage5"),
     ("tests/firmware_polling.resc", "PASS firmware: data-ready polling", "stage5"),
     ("tests/data_ready_interrupt.resc", "PASS data_ready_interrupt: CTRL1 and CTRL4 drive INT1", "stage6"),
-    ("tests/firmware_custom.resc", "PASS firmware: data-ready interrupt", "stage6"),
+    ("tests/firmware_data_ready_interrupt.resc", "PASS firmware: data-ready interrupt", "stage6"),
     ("tests/compare_models.resc", "PASS compare: custom and reference identity/XYZ access", "stage6"),
     ("tests/firmware_reference.resc", "PASS reference firmware: I2C transactions complete; stimulus difference observed", "stage6"),
 ]

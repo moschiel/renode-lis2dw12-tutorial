@@ -689,13 +689,13 @@ flowchart LR
     subgraph disabled["IF_ADD_INC = 0"]
         direction TB
         D0["SUB 0x28<br/>select OUT_X_L"] --> D1["byte 0<br/>read OUT_X_L"]
-        D1 -->|"pointer stays at register 0x28"| D2["byte 1<br/>read OUT_X_L again"]
+        D1 -->|"pointer stays at same register (0x28)"| D2["byte 1<br/>read OUT_X_L again"]
     end
 
     subgraph enabled["IF_ADD_INC = 1"]
         direction TB
         E0["SUB 0x28<br/>select OUT_X_L"] --> E1["byte 0<br/>read OUT_X_L"]
-        E1 -->|"pointer advances to next register"| E2["byte 1<br/>read OUT_X_H"]
+        E1 -->|"pointer advances to next register (0x29)"| E2["byte 1<br/>read OUT_X_H"]
         E2 --> E3["... Y_L, Y_H, Z_L, Z_H"]
     end
 
@@ -789,7 +789,7 @@ ReadXyzBurst(axes);
 Run the cumulative firmware check:
 
 ```sh
-renode --console --disable-gui --plain tests/firmware_custom.resc
+renode --console --disable-gui --plain tests/firmware_auto_increment.resc
 ```
 
 **Expected:** `PASS firmware: WHO_AM_I, XYZ, and IF_ADD_INC`.
@@ -982,7 +982,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 Run the complete firmware path:
 
 ```sh
-renode --console --disable-gui --plain tests/firmware_custom.resc
+renode --console --disable-gui --plain tests/firmware_data_ready_interrupt.resc
 ```
 
 **Expected:** `PASS firmware: data-ready interrupt`. The final UART lines are
