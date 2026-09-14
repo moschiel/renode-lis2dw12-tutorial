@@ -100,7 +100,7 @@ All remaining commands start from `my-lis2dw12`.
 
 ### 1.1 Separate I2C transport from register storage
 
-In **section 6.1.1, I2C operation**, the datasheet describes the `SUB` byte,
+In **datasheet section 6.1.1, I2C operation**, the `SUB` byte
 which selects an internal register. During a write, subsequent bytes are data.
 During a combined read, the master sends `SUB` and switches to receiving with
 a repeated START. In Renode, the controller forwards this to `Write` and `Read`.
@@ -119,7 +119,7 @@ also separates these responsibilities. Its `Write` accepts address and data in
 separate calls, and `FinishTransmission` ends that state. We follow this structure
 with a boolean and a pointer.
 
-The physical device also supports SPI (section 6.2). The reference implementation
+The physical device also supports SPI (datasheet section 6.2). The reference implementation
 uses `II2CPeripheral`; this tutorial we are going to implement I2C only.
 
 ### 1.2 Create the model
@@ -170,7 +170,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             var offset = 0;
             if(waitingForRegister)
             {
-                // DS11811 Rev. 9, section 6.1.1: SUB selects the register.
+                // DS11811 Rev. 9, datasheet section 6.1.1: SUB selects the register.
                 // The controller may deliver SUB and data in separate calls.
                 selectedRegister = data[0];
                 waitingForRegister = false;
@@ -245,7 +245,7 @@ while `Reset` also restores the collection values. Keeping the selection between
 levels before formatting these messages, and the arguments used here are cheap.
 
 We have not defined any sensor registers yet. Automatic increment will be added
-with `CTRL2.IF_ADD_INC` (section 8.5), so this stage does not represent the full
+with `CTRL2.IF_ADD_INC` (datasheet section 8.5), so this stage does not represent the full
 LIS2DW12 behavior after reset.
 
 In the **Terminal**, check compilation:
@@ -369,10 +369,10 @@ write must not change the value.
 ### 2.2 Implement the register
 
 In `models/LIS2DW12.cs`, replace the temporary `TRANSPORT_TEST` definition from
-section 1 with the register described in **DS11811 Rev. 9, section 8.3**:
+tutorial section 1 with the register described in **DS11811 Rev. 9, datasheet section 8.3**:
 
 ```csharp
-// DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.
+// DS11811 Rev. 9, datasheet section 8.3: WHO_AM_I is read-only and resets to 0x44.
 RegistersCollection.DefineRegister(0x0F, 0x44)
     .WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
 ```
@@ -518,7 +518,7 @@ As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
 ### 3.1 Output register behavior
 
 The LIS2DW12 exposes each axis through two consecutive read-only registers.
-Sections **8.12 through 8.17** describe the low byte followed by the high byte;
+Datasheet sections **8.12 through 8.17** describe the low byte followed by the high byte;
 together they form a signed 16-bit value in two's complement.
 
 At reset, all six registers contain zero. `CTRL1.ODR` also resets to power-down,
@@ -537,7 +537,7 @@ sample acquisition behavior will be introduced later.
 Add these definitions after `WHO_AM_I` in the constructor:
 
 ```csharp
-// DS11811 Rev. 9, sections 8.12-8.17: each axis is exposed as a
+// DS11811 Rev. 9, datasheet sections 8.12-8.17: each axis is exposed as a
 // little-endian, signed 16-bit value split across two registers.
 DefineOutputRegister(0x28, out outputXLow, "OUT_X_L");
 DefineOutputRegister(0x29, out outputXHigh, "OUT_X_H");
@@ -603,8 +603,8 @@ private IValueRegisterField outputZHigh;
 ```
 
 For this stage, advance `selectedRegister` after every register read and write.
-This reproduces the device's reset behavior for consecutive accesses; the next
-section makes it configurable:
+This reproduces the device's reset behavior for consecutive accesses; tutorial
+section 4 makes it configurable:
 
 ```csharp
 selectedRegister++;
@@ -676,7 +676,7 @@ XYZ: 1000,-500,16384
 
 ### 4.1 IF_ADD_INC behavior
 
-Sections **6.1.1 and 8.5** specify that each additional byte accesses the next
+Datasheet sections **6.1.1 and 8.5** specify that each additional byte accesses the next
 register when `IF_ADD_INC` is `1`, or repeats the selected register when it is
 `0`. The bit is in `CTRL2` (`0x21`) and resets to `1`.
 
@@ -707,7 +707,7 @@ flowchart LR
 Add the register after `WHO_AM_I`:
 
 ```csharp
-// DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior here.
+// DS11811 Rev. 9, datasheet section 8.5: only IF_ADD_INC affects behavior here.
 // Tagged fields preserve the remaining layout without simulating it.
 RegistersCollection.DefineRegister(0x21, 0x04)
     .WithTaggedFlag("SIM", 0)
@@ -750,7 +750,7 @@ for each transferred data byte.
 
 ### 4.3 Validate both reading styles
 
-`tests/auto_increment.resc` uses the same XYZ sample from section 3. It verifies
+`tests/auto_increment.resc` uses the same XYZ sample from tutorial section 3. It verifies
 that a disabled burst repeats `OUT_X_L`, individual reads still reconstruct all
 axes, and re-enabling the reset behavior restores the six-byte burst:
 
@@ -826,7 +826,7 @@ replacement for the device. Comparisons cover the demonstrated firmware and
 configurations, not arbitrary LIS2DW12 drivers.
 
 - [Preparatory PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
-- [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in section 6, register map in section 7, and registers in section 8.
+- [LIS2DW12 datasheet, DS11811 Rev. 9](https://www.st.com/resource/en/datasheet/lis2dw12.pdf): interfaces in datasheet section 6, register map in datasheet section 7, and registers in datasheet section 8.
 - [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
 - [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
 
