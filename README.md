@@ -821,7 +821,8 @@ conversion:
 
 ```mermaid
 flowchart LR
-    P[ODR = 0<br/>Power-down] -->|SetSample ignored| P
+    P[ODR = 0<br/>Power-down] -->|SetSample| I[Ignored<br/>XYZ unchanged]
+    I --> P
     P -->|Write non-zero ODR| A[Acquisition enabled<br/>DRDY = 0]
     A -->|SetSample| D[New XYZ available<br/>DRDY = 1]
     D -->|Read an axis high byte| A
