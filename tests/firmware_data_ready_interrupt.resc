@@ -6,4 +6,4 @@ include @scripts/uart_capture.py
 python "monitor.Machine['sysbus.i2c1.accel'].SetSample(1000, -500, 16384)"
 emulation RunFor "0.100"
 assert_data_ready_interrupt_uart
-quit
+finish_firmware_test

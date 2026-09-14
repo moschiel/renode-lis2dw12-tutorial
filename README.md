@@ -660,17 +660,21 @@ USART2. The supplied firmware already contains this code and is called after
 then checks only the capabilities completed through this section:
 
 ```sh
-renode --console --disable-gui --plain tests/firmware_xyz.resc
+renode --console --plain tests/firmware_xyz.resc
 ```
 
-**Expected:** `PASS firmware: XYZ sample`.
-
-The relevant UART lines are:
+The headless test prints the UART line it validates, followed by its result:
 
 ```text
-WHO_AM_I: 0x44
-XYZ: 1000,-500,16384
+UART: XYZ: 1000,-500,16384
+PASS firmware: XYZ sample
 ```
+
+### Inspect UART
+
+Firmware test scripts open Renode's UART analyzer before the firmware runs.
+After the test result, Renode remains at the Monitor prompt so the UART output
+can be inspected. Type `quit` in the Monitor when finished.
 
 ## 4. Configure multi-byte register access
 
@@ -786,20 +790,17 @@ HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
 ReadXyzBurst(axes);
 ```
 
-Run the cumulative firmware check:
+Run the firmware check for this behavior:
 
 ```sh
-renode --console --disable-gui --plain tests/firmware_auto_increment.resc
+renode --console --plain tests/firmware_auto_increment.resc
 ```
 
-**Expected:** `PASS firmware: IF_ADD_INC behavior`.
-
-The complete UART result is:
+The headless test prints:
 
 ```text
-WHO_AM_I: 0x44
-XYZ: 1000,-500,16384
-IF_ADD_INC: PASS
+UART: IF_ADD_INC: PASS
+PASS firmware: IF_ADD_INC behavior
 ```
 
 ## 5. Configure acquisition and poll data-ready
@@ -871,14 +872,18 @@ HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_STATUS,
                  I2C_MEMADD_SIZE_8BIT, &status, 1, 100);
 ```
 
-Run the cumulative check through polling:
+Run the firmware check for polling:
 
 ```sh
-renode --console --disable-gui --plain tests/firmware_polling.resc
+renode --console --plain tests/firmware_polling.resc
 ```
 
-**Expected:** `PASS firmware: data-ready polling`. The new UART line is
-`DRDY_POLL: PASS`.
+The headless test prints:
+
+```text
+UART: DRDY_POLL: PASS
+PASS firmware: data-ready polling
+```
 
 ## 6. Route data-ready to INT1
 
@@ -982,11 +987,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 Run the complete firmware path:
 
 ```sh
-renode --console --disable-gui --plain tests/firmware_data_ready_interrupt.resc
+renode --console --plain tests/firmware_data_ready_interrupt.resc
 ```
 
-**Expected:** `PASS firmware: data-ready interrupt`. The final UART lines are
-`DRDY_POLL: PASS` and `DRDY_INT1: PASS`.
+The headless test prints:
+
+```text
+UART: DRDY_INT1: PASS
+PASS firmware: data-ready interrupt
+```
 
 ## 7. Optional interactive web view (vibe-coded)
 
@@ -1053,7 +1062,7 @@ values, while the official model accepts physical acceleration and applies its
 configured conversion mode.
 
 ```sh
-renode --console --disable-gui --plain tests/firmware_reference.resc
+renode --console --plain tests/firmware_reference.resc
 ```
 
 **Expected:** `PASS reference firmware: I2C transactions complete; stimulus

@@ -1,6 +1,9 @@
 # Executed by Renode's embedded Python runtime during firmware checks.
+from System import Environment
+
 uart_lines = []
 uart_partial = []
+headless_test = Environment.GetEnvironmentVariable('RENODE_TEST_HEADLESS') == '1'
 
 
 def on_uart_byte(value):
@@ -13,10 +16,19 @@ def on_uart_byte(value):
 
 monitor.Machine['sysbus.usart2'].CharReceived += on_uart_byte
 
+if not headless_test:
+    monitor.Parse('showAnalyzer usart2')
+
 
 def assert_current_line(expected, description):
     assert uart_lines.count(expected) == 1, 'UART mismatch: ' + str(uart_lines)
+    print('UART: ' + expected)
     print('PASS firmware: ' + description)
+
+
+def mc_finish_firmware_test():
+    if headless_test:
+        monitor.Parse('quit')
 
 
 def mc_assert_xyz_uart():

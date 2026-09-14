@@ -1,5 +1,6 @@
 """Rebuild tutorial files from README blocks and run the documented checks."""
 import argparse
+import os
 from pathlib import Path
 import re
 import shutil
@@ -187,6 +188,7 @@ def check(renode, destination, final_stage):
             command, cwd=destination, input="quit\n", text=True,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             encoding="utf-8", errors="replace", timeout=60,
+            env={**os.environ, "RENODE_TEST_HEADLESS": "1"},
         )
         # Monitor errors can still produce exit code zero. Require the final
         # marker and reject explicit compilation/command/assertion failures.
