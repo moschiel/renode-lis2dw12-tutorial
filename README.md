@@ -680,13 +680,13 @@ flowchart LR
     subgraph disabled["IF_ADD_INC = 0"]
         direction TB
         D0["SUB 0x28<br/>select OUT_X_L"] --> D1["byte 0<br/>read OUT_X_L"]
-        D1 -->|"pointer stays at 0x28"| D2["byte 1<br/>read OUT_X_L again"]
+        D1 -->|"pointer stays at register 0x28"| D2["byte 1<br/>read OUT_X_L again"]
     end
 
     subgraph enabled["IF_ADD_INC = 1"]
         direction TB
         E0["SUB 0x28<br/>select OUT_X_L"] --> E1["byte 0<br/>read OUT_X_L"]
-        E1 -->|"pointer advances"| E2["byte 1<br/>read OUT_X_H"]
+        E1 -->|"pointer advances to next register"| E2["byte 1<br/>read OUT_X_H"]
         E2 --> E3["... Y_L, Y_H, Z_L, Z_H"]
     end
 
@@ -698,11 +698,11 @@ flowchart LR
 Add the register after `WHO_AM_I`:
 
 ```csharp
-// DS11811 Rev. 9, datasheet section 8.5: this stage models only IF_ADD_INC.
+// DS11811 Rev. 9, datasheet section 8.5: this stage models only IF_ADD_INC field.
 RegistersCollection.DefineRegister(0x21, 0x04).WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC");
 ```
 
-Only `IF_ADD_INC` is in scope for this tutorial section. Declare its handle:
+Only `IF_ADD_INC` field from CTRL2 register will be implemented. Declare its handle:
 
 ```csharp
 private IFlagRegisterField automaticAddressIncrement;
@@ -729,8 +729,9 @@ private void IncrementSelectedRegister()
 Register selection itself does not advance the pointer; the helper runs once
 for each transferred data byte.
 
-Add the burst helper to the firmware. Unlike the six individual reads from
-tutorial section 3, this requests the whole sample in one I2C operation:
+The supplied firmware uses the following burst helper for this stage. Unlike
+the six individual reads from tutorial section 3, it requests the whole sample
+in one I2C operation:
 
 ```c
 static HAL_StatusTypeDef ReadXyzBurst(int16_t axes[3])
