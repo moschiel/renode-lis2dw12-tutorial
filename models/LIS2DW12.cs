@@ -14,10 +14,14 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             // DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.
             RegistersCollection.DefineRegister(0x0F, 0x44)
                 .WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
-            // Temporary neighboring storage used to observe IF_ADD_INC.
-            // CTRL1 fields and behavior are introduced with sample generation.
-            RegistersCollection.DefineRegister(0x20, 0x00)
-                .WithValueField(0, 8, out control1, name: "CTRL1");
+            // DS11811 Rev. 9, sections 8.12-8.17: each axis is exposed as a
+            // little-endian, signed 16-bit value split across two registers.
+            DefineOutputRegister(0x28, out outputXLow, "OUT_X_L");
+            DefineOutputRegister(0x29, out outputXHigh, "OUT_X_H");
+            DefineOutputRegister(0x2A, out outputYLow, "OUT_Y_L");
+            DefineOutputRegister(0x2B, out outputYHigh, "OUT_Y_H");
+            DefineOutputRegister(0x2C, out outputZLow, "OUT_Z_L");
+            DefineOutputRegister(0x2D, out outputZHigh, "OUT_Z_H");
             // DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior.
             // Tagged fields preserve the documented layout without simulating
             // features that are outside this tutorial's common polling path.
@@ -37,8 +41,20 @@ namespace Antmicro.Renode.Peripherals.Tutorial
 
         // Side-effect-free values used by optional visualization tooling.
         public byte WhoAmI => 0x44;
-        public byte Control1 => (byte)control1.Value;
         public byte Control2 => automaticAddressIncrement.Value ? (byte)0x04 : (byte)0x00;
+        public short SampleX => ReadAxis(outputXLow, outputXHigh);
+        public short SampleY => ReadAxis(outputYLow, outputYHigh);
+        public short SampleZ => ReadAxis(outputZLow, outputZHigh);
+
+        // Supplies deterministic raw sensor data without simulating motion or
+        // analog conversion. Values map directly to the six output registers.
+        public void SetSample(int x, int y, int z)
+        {
+            SetAxis(x, outputXLow, outputXHigh, nameof(x));
+            SetAxis(y, outputYLow, outputYHigh, nameof(y));
+            SetAxis(z, outputZLow, outputZHigh, nameof(z));
+            this.Log(LogLevel.Debug, "Sample updated to X={0}, Y={1}, Z={2}.", x, y, z);
+        }
 
         // IPeripheral contract inherited by II2CPeripheral.
         // Represents a hardware reset of the modeled device.
@@ -122,14 +138,43 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             }
         }
 
+        private void DefineOutputRegister(byte address, out IValueRegisterField field, string name)
+        {
+            RegistersCollection.DefineRegister(address, 0x00)
+                .WithValueField(0, 8, out field, FieldMode.Read, name: name);
+        }
+
+        private static void SetAxis(int value, IValueRegisterField low, IValueRegisterField high, string parameterName)
+        {
+            if(value < short.MinValue || value > short.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(parameterName, "Raw axis values must fit in a signed 16-bit register pair.");
+            }
+
+            var raw = unchecked((ushort)(short)value);
+            low.Value = (byte)raw;
+            high.Value = (byte)(raw >> 8);
+        }
+
+        private static short ReadAxis(IValueRegisterField low, IValueRegisterField high)
+        {
+            var raw = (ushort)(low.Value | (high.Value << 8));
+            return unchecked((short)raw);
+        }
+
         private void ClearSelection()
         {
             selectedRegister = 0;
             waitingForRegister = true;
         }
 
-        private IValueRegisterField control1;
         private IFlagRegisterField automaticAddressIncrement;
+        private IValueRegisterField outputXLow;
+        private IValueRegisterField outputXHigh;
+        private IValueRegisterField outputYLow;
+        private IValueRegisterField outputYHigh;
+        private IValueRegisterField outputZLow;
+        private IValueRegisterField outputZHigh;
         private byte selectedRegister;
         private bool waitingForRegister;
     }

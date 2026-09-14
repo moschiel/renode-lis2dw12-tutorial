@@ -2,32 +2,38 @@ include @scripts/accel_isolated.resc
 python "from System import Array, Byte"
 python "dev = monitor.Machine['sysbus.accel']"
 
-# DS11811 Rev. 9, Table 21 and sections 8.4/8.5: CTRL1 resets to
-# 0x00 and CTRL2 resets to 0x04, with IF_ADD_INC enabled at bit 2.
-python "dev.Write(Array[Byte]([0x20]))"
-python "assert list(dev.Read(2)) == [0x00, 0x04], 'control register reset values mismatch'"
+# Use one known XYZ sample to make pointer movement visible.
+python "dev.SetSample(1000, -500, 16384)"
+python "expected = [0xE8, 0x03, 0x0C, 0xFE, 0x00, 0x40]"
+python "dev.Write(Array[Byte]([0x28]))"
+python "assert list(dev.Read(6)) == expected, 'default burst read mismatch'"
 
-# With IF_ADD_INC disabled, every byte in a burst targets the same register.
+# With IF_ADD_INC disabled, a burst repeats OUT_X_L. Individual register
+# selections still allow the master to read the complete sample.
 python "dev.FinishTransmission()"
 python "dev.Write(Array[Byte]([0x21, 0x00]))"
 python "dev.FinishTransmission()"
-python "dev.Write(Array[Byte]([0x20, 0x12, 0x34]))"
-python "dev.FinishTransmission()"
-python "dev.Write(Array[Byte]([0x20]))"
-python "assert list(dev.Read(2)) == [0x34, 0x34], 'disabled IF_ADD_INC changed the address'"
+python "dev.Write(Array[Byte]([0x28]))"
+python "assert list(dev.Read(6)) == [0xE8] * 6, 'disabled IF_ADD_INC changed the address'"
+python "individual = []"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x28])); individual.extend(dev.Read(1))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x29])); individual.extend(dev.Read(1))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2A])); individual.extend(dev.Read(1))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2B])); individual.extend(dev.Read(1))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2C])); individual.extend(dev.Read(1))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2D])); individual.extend(dev.Read(1))"
+python "assert list(individual) == expected, 'individual XYZ reads mismatch'"
 
-# Re-enable IF_ADD_INC. Consecutive data bytes now reach CTRL1 and CTRL2.
+# Re-enable IF_ADD_INC. One six-byte burst traverses the output register block.
 python "dev.FinishTransmission()"
 python "dev.Write(Array[Byte]([0x21, 0x04]))"
 python "dev.FinishTransmission()"
-python "dev.Write(Array[Byte]([0x20, 0x50, 0x04]))"
-python "dev.FinishTransmission()"
-python "dev.Write(Array[Byte]([0x20]))"
-python "assert list(dev.Read(2)) == [0x50, 0x04], 'enabled IF_ADD_INC did not advance the address'"
+python "dev.Write(Array[Byte]([0x28]))"
+python "assert list(dev.Read(6)) == expected, 'enabled IF_ADD_INC did not advance through XYZ'"
 
 python "dev.Reset()"
-python "dev.Write(Array[Byte]([0x20]))"
-python "assert list(dev.Read(2)) == [0x00, 0x04], 'hardware reset did not restore control defaults'"
+python "dev.Write(Array[Byte]([0x21]))"
+python "assert list(dev.Read(1)) == [0x04], 'hardware reset did not restore IF_ADD_INC'"
 
 echo "PASS auto_increment: IF_ADD_INC behavior"
 quit

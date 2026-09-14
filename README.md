@@ -13,7 +13,7 @@ The scope is a reduced but practical polling flow: identify the device, apply
 basic initialization, report data-ready status, and read XYZ samples. The same
 firmware is run against our model and Renode's official model for comparison.
 The GUI and utility scripts are 100% *vibe coded* support assets and are not
-part of the modeling lesson. See [Limits and References](#limits-and-references)
+part of the modeling lesson. See [Limits and References](#7-limits-and-references)
 for the detailed boundaries.
 
 Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
@@ -23,11 +23,29 @@ register maps and transaction state.
 ## Contents
 
 - [1. Set up the project and I2C skeleton](#1-set-up-the-project-and-i2c-skeleton)
+  - [1.1 Separate I2C transport from register storage](#11-separate-i2c-transport-from-register-storage)
+  - [1.2 Create the model](#12-create-the-model)
+  - [1.3 Check the transport with temporary storage](#13-check-the-transport-with-temporary-storage)
+  - [1.4 Run the stage 1 validation](#14-run-the-stage-1-validation)
 - [2. WHO_AM_I and STM32 firmware](#2-who_am_i-and-stm32-firmware)
-- [3. Multi-byte register access](#3-multi-byte-register-access)
-- [4. Minimal sensor initialization](#4-minimal-sensor-initialization-work-in-progress)
-- [Optional web view](#optional-web-view-vibe-coded)
-- [Limits and References](#limits-and-references)
+  - [2.1 Register behavior](#21-register-behavior)
+  - [2.2 Implement the register](#22-implement-the-register)
+  - [2.3 Validate the model](#23-validate-the-model)
+  - [2.4 Prepare the STM32 firmware](#24-prepare-the-stm32-firmware)
+  - [2.5 Connect the STM32](#25-connect-the-stm32)
+- [3. Read XYZ output data](#3-read-xyz-output-data)
+  - [3.1 Output register behavior](#31-output-register-behavior)
+  - [3.2 Define the XYZ registers](#32-define-the-xyz-registers)
+  - [3.3 Validate the model](#33-validate-the-model)
+  - [3.4 Read XYZ from the STM32](#34-read-xyz-from-the-stm32)
+- [4. Configure multi-byte register access](#4-configure-multi-byte-register-access)
+  - [4.1 IF_ADD_INC behavior](#41-if_add_inc-behavior)
+  - [4.2 Define CTRL2](#42-define-ctrl2)
+  - [4.3 Validate both reading styles](#43-validate-both-reading-styles)
+- [5. Configure sample acquisition](#5-configure-sample-acquisition-work-in-progress)
+- [6. Optional web view](#6-optional-web-view-vibe-coded)
+- [7. Limits and References](#7-limits-and-references)
+  - [7.1 Optional model comparison](#71-optional-model-comparison)
 
 ## 1. Set up the project and I2C skeleton
 
@@ -80,7 +98,7 @@ cd ../my-lis2dw12
 All remaining commands start from `my-lis2dw12`.
 **Monitor** blocks run inside the Renode session, not in the terminal.
 
-### Separate I2C transport from register storage
+### 1.1 Separate I2C transport from register storage
 
 In **section 6.1.1, I2C operation**, the datasheet describes the `SUB` byte,
 which selects an internal register. During a write, subsequent bytes are data.
@@ -104,7 +122,7 @@ with a boolean and a pointer.
 The physical device also supports SPI (section 6.2). The reference implementation
 uses `II2CPeripheral`; this tutorial we are going to implement I2C only.
 
-### Create the model
+### 1.2 Create the model
 
 Create `models/LIS2DW12.cs`:
 
@@ -240,7 +258,7 @@ renode --console --disable-gui --plain models/LIS2DW12.cs
 `--disable-gui` avoids graphical windows and `--plain` simplifies output.
 In the **Monitor**, enter `quit`.
 
-### Check the transport with temporary storage
+### 1.3 Check the transport with temporary storage
 
 `TRANSPORT_TEST` is a temporary writable byte in the `LIS2DW12` class itself.
 Its address and value are artificial; they do not belong to the LIS2DW12 map.
@@ -321,7 +339,7 @@ From this point onward, the tutorial uses supplied `.resc` scripts for validatio
 The `.resc` scritps are repeatable, document the expected behavior in comments.
 Take a look at the test files to understand the syntax used to write Renode tests.
 
-### Run the stage 1 validation
+### 1.4 Run the stage 1 validation
 
 `tests/transport.resc` is supplied with the repository. It checks the temporary
 register's reset value, separate and combined writes, an empty write, zero-length
@@ -342,13 +360,13 @@ guarantee that the assertions passed.
 ## 2. WHO_AM_I and STM32 firmware
 
 
-### Register behavior
+### 2.1 Register behavior
 
 `WHO_AM_I` identifies the connected sensor. A master selects sub-address `0x0F`
 over I2C and receives the fixed value `0x44`. The register is read-only, so a
 write must not change the value.
 
-### Implement the register
+### 2.2 Implement the register
 
 In `models/LIS2DW12.cs`, replace the temporary `TRANSPORT_TEST` definition from
 section 1 with the register described in **DS11811 Rev. 9, section 8.3**:
@@ -362,7 +380,7 @@ RegistersCollection.DefineRegister(0x0F, 0x44)
 The `FieldMode.Read` argument expresses the access rule from the datasheet:
 writes to this register are ignored by the model.
 
-### Validate the model
+### 2.3 Validate the model
 
 `tests/who_am_i.resc` is supplied with the project. It checks the reset value,
 the register selection byte, and the read-only behavior. Run it from the
@@ -374,7 +392,7 @@ renode --console --disable-gui --plain tests/who_am_i.resc
 
 **Expected:** `PASS who_am_i: register behavior`.
 
-### Prepare the STM32 firmware
+### 2.4 Prepare the STM32 firmware
 
 The supplied project in `firmware/lis2dw12-demo` was generated with STM32CubeMX
 for **STM32L072CZYx**, the MCU family used by
@@ -452,7 +470,7 @@ MX_USART2_UART_Init();
 ValidateWhoAmI();
 ```
 
-### Connect the STM32
+### 2.5 Connect the STM32
 
 Create `platforms/stm32_lis2dw12.repl`:
 
@@ -495,56 +513,202 @@ Start the emulation with `start`.
 The `showAnalyzer usart2` command in the script opens a window for debugging UART2;
 As programmed in the firmware, it should display `WHO_AM_I: 0x44`.
 
-## 3. Multi-byte register access
+## 3. Read XYZ output data
 
+### 3.1 Output register behavior
 
-### IF_ADD_INC behavior
+The LIS2DW12 exposes each axis through two consecutive read-only registers.
+Sections **8.12 through 8.17** describe the low byte followed by the high byte;
+together they form a signed 16-bit value in two's complement.
+
+At reset, all six registers contain zero. `CTRL1.ODR` also resets to power-down,
+so these values are readable but do not represent a new physical conversion.
+This tutorial injects deterministic raw register data directly into the model;
+sample acquisition behavior will be introduced later.
+
+| Axis | Raw value | Low byte | High byte |
+| --- | ---: | ---: | ---: |
+| X | `1000` (`0x03E8`) | `0xE8` | `0x03` |
+| Y | `-500` (`0xFE0C`) | `0x0C` | `0xFE` |
+| Z | `16384` (`0x4000`) | `0x00` | `0x40` |
+
+### 3.2 Define the XYZ registers
+
+Add these definitions after `WHO_AM_I` in the constructor:
+
+```csharp
+// DS11811 Rev. 9, sections 8.12-8.17: each axis is exposed as a
+// little-endian, signed 16-bit value split across two registers.
+DefineOutputRegister(0x28, out outputXLow, "OUT_X_L");
+DefineOutputRegister(0x29, out outputXHigh, "OUT_X_H");
+DefineOutputRegister(0x2A, out outputYLow, "OUT_Y_L");
+DefineOutputRegister(0x2B, out outputYHigh, "OUT_Y_H");
+DefineOutputRegister(0x2C, out outputZLow, "OUT_Z_L");
+DefineOutputRegister(0x2D, out outputZHigh, "OUT_Z_H");
+```
+
+The helper defines read-only bytes with the documented reset value:
+
+```csharp
+private void DefineOutputRegister(byte address, out IValueRegisterField field, string name)
+{
+    RegistersCollection.DefineRegister(address, 0x00)
+        .WithValueField(0, 8, out field, FieldMode.Read, name: name);
+}
+```
+
+Declare the six fields and expose a method that writes them from the simulated
+environment. These writes bypass the I2C permissions intentionally; the I2C
+master still sees read-only registers:
+
+```csharp
+public short SampleX => ReadAxis(outputXLow, outputXHigh);
+public short SampleY => ReadAxis(outputYLow, outputYHigh);
+public short SampleZ => ReadAxis(outputZLow, outputZHigh);
+
+public void SetSample(int x, int y, int z)
+{
+    SetAxis(x, outputXLow, outputXHigh, nameof(x));
+    SetAxis(y, outputYLow, outputYHigh, nameof(y));
+    SetAxis(z, outputZLow, outputZHigh, nameof(z));
+    this.Log(LogLevel.Debug, "Sample updated to X={0}, Y={1}, Z={2}.", x, y, z);
+}
+
+private static void SetAxis(int value, IValueRegisterField low,
+    IValueRegisterField high, string parameterName)
+{
+    if(value < short.MinValue || value > short.MaxValue)
+    {
+        throw new ArgumentOutOfRangeException(parameterName,
+            "Raw axis values must fit in a signed 16-bit register pair.");
+    }
+
+    var raw = unchecked((ushort)(short)value);
+    low.Value = (byte)raw;
+    high.Value = (byte)(raw >> 8);
+}
+
+private static short ReadAxis(IValueRegisterField low, IValueRegisterField high)
+{
+    var raw = (ushort)(low.Value | (high.Value << 8));
+    return unchecked((short)raw);
+}
+
+private IValueRegisterField outputXLow;
+private IValueRegisterField outputXHigh;
+private IValueRegisterField outputYLow;
+private IValueRegisterField outputYHigh;
+private IValueRegisterField outputZLow;
+private IValueRegisterField outputZHigh;
+```
+
+For this stage, advance `selectedRegister` after every register read and write.
+This reproduces the device's reset behavior for consecutive accesses; the next
+section makes it configurable:
+
+```csharp
+selectedRegister++;
+```
+
+### 3.3 Validate the model
+
+The supplied `tests/xyz_read.resc` verifies reset values, injects the sample from
+the table, reads its six bytes, checks signed model state, and confirms that I2C
+writes cannot change the output registers:
+
+```sh
+renode --console --disable-gui --plain tests/xyz_read.resc
+```
+
+**Expected:** `PASS xyz_read: signed XYZ output registers`.
+
+### 3.4 Read XYZ from the STM32
+
+The firmware reads six bytes starting at `OUT_X_L` and reconstructs each signed
+axis in little-endian order:
+
+```c
+#define LIS2DW12_OUT_X_L 0x28
+
+static void DecodeXyz(const uint8_t raw[6], int16_t axes[3])
+{
+  axes[0] = (int16_t)((uint16_t)raw[0] | ((uint16_t)raw[1] << 8));
+  axes[1] = (int16_t)((uint16_t)raw[2] | ((uint16_t)raw[3] << 8));
+  axes[2] = (int16_t)((uint16_t)raw[4] | ((uint16_t)raw[5] << 8));
+}
+
+static HAL_StatusTypeDef ReadXyzBurst(int16_t axes[3])
+{
+  uint8_t raw[6] = {0};
+  HAL_StatusTypeDef status = HAL_I2C_Mem_Read(
+      &hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_OUT_X_L,
+      I2C_MEMADD_SIZE_8BIT, raw, sizeof(raw), 100);
+
+  if (status == HAL_OK)
+  {
+    DecodeXyz(raw, axes);
+  }
+  return status;
+}
+```
+
+`ValidateXyzRead()` calls this helper and reports the injected values through
+USART2. The supplied firmware already contains this code and is called after
+`ValidateWhoAmI()`.
+
+`tests/firmware_xyz.resc` injects the same raw sample before starting the STM32,
+then checks only the capabilities completed through this section:
+
+```sh
+renode --console --disable-gui --plain tests/firmware_xyz.resc
+```
+
+**Expected:** `PASS firmware: WHO_AM_I and XYZ sample`.
+
+The relevant UART lines are:
+
+```text
+WHO_AM_I: 0x44
+XYZ: 1000,-500,16384
+```
+
+## 4. Configure multi-byte register access
+
+### 4.1 IF_ADD_INC behavior
 
 Sections **6.1.1 and 8.5** specify that each additional byte accesses the next
 register when `IF_ADD_INC` is `1`, or repeats the selected register when it is
-`0`. The bit is in `CTRL2` (`0x21`), which resets to `0x04`, so automatic
-increment starts enabled.
+`0`. The bit is in `CTRL2` (`0x21`) and resets to `1`.
 
-`CTRL1` is temporary writable storage in this section only to make pointer
-movement observable. Its useful configuration fields are introduced when the
-firmware starts configuring sample acquisition.
-
-### Visualize the behavior
-
-Each path below is one I2C write beginning with `SUB = 0x20`, which selects
-`CTRL1`. `IF_ADD_INC` determines where the second data byte is written:
+This changes how the same XYZ sample can be read: with increment disabled, the
+firmware selects each output register individually; with increment enabled, one
+six-byte burst traverses the complete output block.
 
 ```mermaid
 flowchart LR
     subgraph disabled["IF_ADD_INC = 0"]
         direction TB
-        D0["SUB 0x20<br/>select CTRL1"] --> D1["data 0x12<br/>write CTRL1"]
-        D1 -->|"pointer stays at 0x20"| D2["data 0x34<br/>write CTRL1"]
+        D0["SUB 0x28<br/>select OUT_X_L"] --> D1["byte 0<br/>read OUT_X_L"]
+        D1 -->|"pointer stays at 0x28"| D2["byte 1<br/>read OUT_X_L again"]
     end
 
     subgraph enabled["IF_ADD_INC = 1"]
         direction TB
-        E0["SUB 0x20<br/>select CTRL1"] --> E1["data 0x50<br/>write CTRL1"]
-        E1 -->|"pointer advances to 0x21"| E2["data 0x04<br/>write CTRL2"]
+        E0["SUB 0x28<br/>select OUT_X_L"] --> E1["byte 0<br/>read OUT_X_L"]
+        E1 -->|"pointer advances"| E2["byte 1<br/>read OUT_X_H"]
+        E2 --> E3["... Y_L, Y_H, Z_L, Z_H"]
     end
 
     disabled ~~~ enabled
 ```
 
-The same pointer rule applies to multi-byte reads: disabled repeats the selected
-register, while enabled reads consecutive registers.
+### 4.2 Define CTRL2
 
-### Define the control registers
-
-Add these definitions after `WHO_AM_I` in the constructor:
+Add the register after `WHO_AM_I`:
 
 ```csharp
-// Temporary neighboring storage used to observe IF_ADD_INC.
-// CTRL1 fields and behavior are introduced with sample generation.
-RegistersCollection.DefineRegister(0x20, 0x00)
-    .WithValueField(0, 8, out control1, name: "CTRL1");
-// DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior.
-// Tagged fields document the remaining layout without simulating it.
+// DS11811 Rev. 9, section 8.5: only IF_ADD_INC affects behavior here.
+// Tagged fields preserve the remaining layout without simulating it.
 RegistersCollection.DefineRegister(0x21, 0x04)
     .WithTaggedFlag("SIM", 0)
     .WithTaggedFlag("I2C_DISABLE", 1)
@@ -556,23 +720,20 @@ RegistersCollection.DefineRegister(0x21, 0x04)
     .WithTaggedFlag("BOOT", 7);
 ```
 
-`WithTaggedFlag` preserves the documented register layout but does not attach
-behavior to those fields. Declare only the state needed by this section:
+`WithTaggedFlag` documents fields whose behavior is outside this stage. Declare:
 
 ```csharp
-private IValueRegisterField control1;
 private IFlagRegisterField automaticAddressIncrement;
 ```
 
-### Apply IF_ADD_INC to transfers
-
-After each `RegistersCollection.Write` and `RegistersCollection.Read`, call:
+Replace the unconditional `selectedRegister++` after each register read and
+write with:
 
 ```csharp
 IncrementSelectedRegister();
 ```
 
-Then add the helper:
+Then add:
 
 ```csharp
 private void IncrementSelectedRegister()
@@ -584,14 +745,14 @@ private void IncrementSelectedRegister()
 }
 ```
 
-The increment happens once per data byte. Register selection itself does not
-advance the pointer.
+Register selection itself does not advance the pointer; the helper runs once
+for each transferred data byte.
 
-### Validate the model
+### 4.3 Validate both reading styles
 
-The supplied `tests/auto_increment.resc` checks reset values, read/write
-storage, fixed-address bursts with `IF_ADD_INC=0`, incrementing bursts with
-`IF_ADD_INC=1`, and hardware reset. Run:
+`tests/auto_increment.resc` uses the same XYZ sample from section 3. It verifies
+that a disabled burst repeats `OUT_X_L`, individual reads still reconstruct all
+axes, and re-enabling the reset behavior restores the six-byte burst:
 
 ```sh
 renode --console --disable-gui --plain tests/auto_increment.resc
@@ -599,109 +760,41 @@ renode --console --disable-gui --plain tests/auto_increment.resc
 
 **Expected:** `PASS auto_increment: IF_ADD_INC behavior`.
 
-### Extend the STM32 firmware
-
-The supplied firmware defines the two register addresses:
+The STM32 firmware follows the same sequence in `ValidateAutoIncrement()`:
 
 ```c
-#define LIS2DW12_I2C_ADDRESS (0x18 << 1)
-#define LIS2DW12_CTRL1 0x20
-#define LIS2DW12_CTRL2 0x21
+uint8_t disabled = 0x00;
+uint8_t enabled = 0x04;
+
+HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
+                  I2C_MEMADD_SIZE_8BIT, &disabled, 1, 100);
+// A burst now repeats OUT_X_L; individual reads still recover XYZ.
+ReadXyzIndividual(axes);
+
+HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
+                  I2C_MEMADD_SIZE_8BIT, &enabled, 1, 100);
+ReadXyzBurst(axes);
 ```
 
-`ValidateAutoIncrement()` first disables increment and writes two bytes
-starting at `CTRL1`. Both target `CTRL1`, so its final value must be `0x34`.
-It then enables increment, writes `0x50` to `CTRL1` and `0x04` to `CTRL2` in
-one burst, and reads each register back:
-
-```c
-static void ValidateAutoIncrement(void)
-{
-  uint8_t disabled = 0x00;
-  uint8_t enabled = 0x04;
-  uint8_t fixedAddressBurst[] = {0x12, 0x34};
-  uint8_t incrementingBurst[] = {0x50, 0x04};
-  uint8_t ctrl1 = 0;
-  uint8_t ctrl2 = 0;
-  const uint8_t successMessage[] = "IF_ADD_INC: PASS\r\n";
-  const uint8_t errorMessage[] = "IF_ADD_INC: ERROR\r\n";
-
-  // With IF_ADD_INC disabled, both bytes target CTRL1.
-  if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
-                        I2C_MEMADD_SIZE_8BIT, &disabled, 1, 100) != HAL_OK
-      || HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                           I2C_MEMADD_SIZE_8BIT, fixedAddressBurst, 2, 100) != HAL_OK
-      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                          I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) != HAL_OK
-      || ctrl1 != 0x34)
-  {
-    HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
-                      sizeof(errorMessage) - 1, 100);
-    return;
-  }
-
-  // Re-enable the default burst behavior and verify CTRL1 -> CTRL2 access.
-  if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
-                        I2C_MEMADD_SIZE_8BIT, &enabled, 1, 100) != HAL_OK
-      || HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                           I2C_MEMADD_SIZE_8BIT, incrementingBurst, 2, 100) != HAL_OK
-      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                          I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) != HAL_OK
-      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
-                          I2C_MEMADD_SIZE_8BIT, &ctrl2, 1, 100) != HAL_OK
-      || ctrl1 != 0x50 || ctrl2 != 0x04)
-  {
-    HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
-                      sizeof(errorMessage) - 1, 100);
-    return;
-  }
-
-  HAL_UART_Transmit(&huart2, (uint8_t *)successMessage,
-                    sizeof(successMessage) - 1, 100);
-}
-```
-
-Call it immediately after the identity check:
-
-```c
-ValidateWhoAmI();
-ValidateAutoIncrement();
-```
-
-The firmware reads `CTRL1` and `CTRL2` separately after the burst so each value
-is explicit in the validation.
-
-Rebuild only if you changed the firmware source; the repository already
-contains the updated ELF. Run `scripts/stm32_lis2dw12.resc`, start the machine,
-and check USART2.
-
-**Expected UART:**
-
-```text
-WHO_AM_I: 0x44
-IF_ADD_INC: PASS
-```
-
-The supplied firmware check captures USART2 without opening an
-analyzer window:
+Run the cumulative firmware check:
 
 ```sh
 renode --console --disable-gui --plain tests/firmware_custom.resc
 ```
 
-**Expected:** `PASS firmware: WHO_AM_I and IF_ADD_INC`.
+**Expected:** `PASS firmware: WHO_AM_I, XYZ, and IF_ADD_INC`.
 
-The STM32L072 platform delivers each I2C transaction boundary to the peripheral,
-so the same firmware reads `WHO_AM_I` correctly from both models. The
-auto-increment result intentionally differs: Renode 1.16.1's official model
-limits address auto-increment to its output and temperature register windows,
-while this tutorial follows the datasheet rule for the demonstrated
-`CTRL1 -> CTRL2` burst. `tests/compare_models.resc` records the shared behavior
-and deliberate differences.
+The complete UART result is:
 
-## 4. Minimal sensor initialization (work in progress)
+```text
+WHO_AM_I: 0x44
+XYZ: 1000,-500,16384
+IF_ADD_INC: PASS
+```
 
-## Optional web view (vibe-coded)
+## 5. Configure sample acquisition (work in progress)
+
+## 6. Optional web view (vibe-coded)
 
 
 The supplied read-only panel displays each implemented register as hexadecimal
@@ -715,7 +808,7 @@ python tools/lab.py
 It opens [localhost:8000](http://127.0.0.1:8000). As later registers are
 implemented, they will be added to this same view. Stop it with `Ctrl+C`.
 
-## Limits and References
+## 7. Limits and References
 
 
 This tutorial implements the common polling path: device identification, basic
@@ -737,7 +830,7 @@ configurations, not arbitrary LIS2DW12 drivers.
 - [Official Renode model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs): architectural reference; code on `master` may change.
 - [Register Framework and peripheral modeling](https://renode.readthedocs.io/en/latest/advanced/writing-peripherals.html).
 
-### Optional model comparison
+### 7.1 Optional model comparison
 
 At the end of the tutorial, `tests/compare_models.resc` can be used to run the
 cumulative checks against both `Tutorial.LIS2DW12` and Renode's official
@@ -748,13 +841,14 @@ renode --console --disable-gui --plain tests/compare_models.resc
 ```
 
 `tests/firmware_reference.resc` also runs the supplied STM32L072 ELF against
-the official model. At the current stage it confirms successful I2C transaction
-boundaries and `WHO_AM_I`; it also records the known control-register
-auto-increment difference described in section 3.
+the official model. It confirms the shared I2C and identification path. Its XYZ
+validation intentionally differs because this tutorial injects raw register
+values, while the official model accepts physical acceleration and applies its
+configured conversion mode.
 
 ```sh
 renode --console --disable-gui --plain tests/firmware_reference.resc
 ```
 
-**Expected:** `PASS reference firmware: I2C transactions complete; known
-auto-increment difference observed`.
+**Expected:** `PASS reference firmware: I2C transactions complete; stimulus
+difference observed`.

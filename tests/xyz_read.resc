@@ -1,0 +1,29 @@
+include @scripts/accel_isolated.resc
+python "from System import Array, Byte"
+python "dev = monitor.Machine['sysbus.accel']"
+
+# DS11811 Rev. 9, Table 21: all six output registers reset to zero.
+python "dev.Write(Array[Byte]([0x28]))"
+python "assert list(dev.Read(6)) == [0, 0, 0, 0, 0, 0], 'XYZ reset values mismatch'"
+
+# The tutorial injects raw 16-bit values instead of simulating physical motion.
+# X=1000 -> 0x03E8, Y=-500 -> 0xFE0C, Z=16384 -> 0x4000.
+python "dev.FinishTransmission()"
+python "dev.SetSample(1000, -500, 16384)"
+python "dev.Write(Array[Byte]([0x28]))"
+python "assert list(dev.Read(6)) == [0xE8, 0x03, 0x0C, 0xFE, 0x00, 0x40], 'XYZ burst encoding mismatch'"
+python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [1000, -500, 16384], 'XYZ model state mismatch'"
+
+# Output registers are read-only to the I2C master.
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x28, 0x00, 0x00]))"
+python "dev.FinishTransmission()"
+python "dev.Write(Array[Byte]([0x28]))"
+python "assert list(dev.Read(2)) == [0xE8, 0x03], 'XYZ output registers must not be writable'"
+
+python "dev.Reset()"
+python "dev.Write(Array[Byte]([0x28]))"
+python "assert list(dev.Read(6)) == [0, 0, 0, 0, 0, 0], 'hardware reset did not clear XYZ outputs'"
+
+echo "PASS xyz_read: signed XYZ output registers"
+quit

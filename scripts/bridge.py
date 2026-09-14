@@ -20,11 +20,24 @@ monitor.Machine['sysbus.usart2'].CharReceived += on_uart_byte
 
 def mc_lab_state():
     accel = monitor.Machine['sysbus.i2c1.accel']
+    x = int(accel.SampleX) & 0xFFFF
+    y = int(accel.SampleY) & 0xFFFF
+    z = int(accel.SampleZ) & 0xFFFF
     print(json.dumps({
         'registers': {
             'WHO_AM_I': int(accel.WhoAmI),
-            'CTRL1': int(accel.Control1),
             'CTRL2': int(accel.Control2),
+            'OUT_X_L': x & 0xFF,
+            'OUT_X_H': x >> 8,
+            'OUT_Y_L': y & 0xFF,
+            'OUT_Y_H': y >> 8,
+            'OUT_Z_L': z & 0xFF,
+            'OUT_Z_H': z >> 8,
+        },
+        'sample': {
+            'x': int(accel.SampleX),
+            'y': int(accel.SampleY),
+            'z': int(accel.SampleZ),
         },
         'uart': list(uart_lines),
     }))

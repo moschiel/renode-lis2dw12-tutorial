@@ -19,8 +19,10 @@ main{max-width:760px;margin:auto}header{display:flex;justify-content:space-betwe
 <script>
 const info={
 WHO_AM_I:{address:'0x0F',fields:[['ID',7,0]]},
-CTRL1:{address:'0x20',fields:[['ODR',7,4],['MODE',3,2],['LP_MODE',1,0]]},
-CTRL2:{address:'0x21',fields:[['BOOT',7,7],['SOFT_RESET',6,6],['RESERVED',5,5],['CS_PU_DISC',4,4],['BDU',3,3],['IF_ADD_INC',2,2],['I2C_DISABLE',1,1],['SIM',0,0]]}
+CTRL2:{address:'0x21',fields:[['BOOT',7,7],['SOFT_RESET',6,6],['RESERVED',5,5],['CS_PU_DISC',4,4],['BDU',3,3],['IF_ADD_INC',2,2],['I2C_DISABLE',1,1],['SIM',0,0]]},
+OUT_X_L:{address:'0x28',fields:[['X low',7,0]]},OUT_X_H:{address:'0x29',fields:[['X high',7,0]]},
+OUT_Y_L:{address:'0x2A',fields:[['Y low',7,0]]},OUT_Y_H:{address:'0x2B',fields:[['Y high',7,0]]},
+OUT_Z_L:{address:'0x2C',fields:[['Z low',7,0]]},OUT_Z_H:{address:'0x2D',fields:[['Z high',7,0]]}
 };
 const hex=n=>'0x'+n.toString(16).toUpperCase().padStart(2,'0');
 const binary=(n,width=8)=>n.toString(2).padStart(width,'0');

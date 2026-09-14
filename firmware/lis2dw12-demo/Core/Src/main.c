@@ -68,8 +68,8 @@ static void MX_USART2_UART_Init(void);
 
 #define LIS2DW12_I2C_ADDRESS (0x18 << 1)
 #define LIS2DW12_WHO_AM_I 0x0F
-#define LIS2DW12_CTRL1 0x20
 #define LIS2DW12_CTRL2 0x21
+#define LIS2DW12_OUT_X_L 0x28
 
 static void ValidateWhoAmI(void)
 {
@@ -91,41 +91,95 @@ static void ValidateWhoAmI(void)
   }
 }
 
+static void DecodeXyz(const uint8_t raw[6], int16_t axes[3])
+{
+  axes[0] = (int16_t)((uint16_t)raw[0] | ((uint16_t)raw[1] << 8));
+  axes[1] = (int16_t)((uint16_t)raw[2] | ((uint16_t)raw[3] << 8));
+  axes[2] = (int16_t)((uint16_t)raw[4] | ((uint16_t)raw[5] << 8));
+}
+
+static HAL_StatusTypeDef ReadXyzBurst(int16_t axes[3])
+{
+  uint8_t raw[6] = {0};
+  HAL_StatusTypeDef status = HAL_I2C_Mem_Read(
+      &hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_OUT_X_L,
+      I2C_MEMADD_SIZE_8BIT, raw, sizeof(raw), 100);
+
+  if (status == HAL_OK)
+  {
+    DecodeXyz(raw, axes);
+  }
+  return status;
+}
+
+static HAL_StatusTypeDef ReadXyzIndividual(int16_t axes[3])
+{
+  uint8_t raw[6] = {0};
+
+  for (uint8_t i = 0; i < sizeof(raw); i++)
+  {
+    if (HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS,
+                         LIS2DW12_OUT_X_L + i, I2C_MEMADD_SIZE_8BIT,
+                         &raw[i], 1, 100) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+  }
+
+  DecodeXyz(raw, axes);
+  return HAL_OK;
+}
+
+static uint8_t IsExpectedSample(const int16_t axes[3])
+{
+  return axes[0] == 1000 && axes[1] == -500 && axes[2] == 16384;
+}
+
+static void ValidateXyzRead(void)
+{
+  int16_t axes[3] = {0};
+  const uint8_t successMessage[] = "XYZ: 1000,-500,16384\r\n";
+  const uint8_t errorMessage[] = "XYZ: ERROR\r\n";
+  const uint8_t *message = errorMessage;
+  uint16_t messageSize = sizeof(errorMessage) - 1;
+
+  if (ReadXyzBurst(axes) == HAL_OK && IsExpectedSample(axes))
+  {
+    message = successMessage;
+    messageSize = sizeof(successMessage) - 1;
+  }
+
+  HAL_UART_Transmit(&huart2, (uint8_t *)message, messageSize, 100);
+}
+
 static void ValidateAutoIncrement(void)
 {
   uint8_t disabled = 0x00;
   uint8_t enabled = 0x04;
-  uint8_t fixedAddressBurst[] = {0x12, 0x34};
-  uint8_t incrementingBurst[] = {0x50, 0x04};
-  uint8_t ctrl1 = 0;
-  uint8_t ctrl2 = 0;
+  uint8_t repeated[6] = {0};
+  int16_t axes[3] = {0};
   const uint8_t successMessage[] = "IF_ADD_INC: PASS\r\n";
   const uint8_t errorMessage[] = "IF_ADD_INC: ERROR\r\n";
 
-  // With IF_ADD_INC disabled, both bytes target CTRL1.
+  // Without address increment, a burst repeatedly reads OUT_X_L.
   if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
                         I2C_MEMADD_SIZE_8BIT, &disabled, 1, 100) != HAL_OK
-      || HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                           I2C_MEMADD_SIZE_8BIT, fixedAddressBurst, 2, 100) != HAL_OK
-      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                          I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) != HAL_OK
-      || ctrl1 != 0x34)
+      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_OUT_X_L,
+                          I2C_MEMADD_SIZE_8BIT, repeated, sizeof(repeated), 100) != HAL_OK
+      || repeated[0] != 0xE8 || repeated[1] != 0xE8
+      || repeated[2] != 0xE8 || repeated[3] != 0xE8
+      || repeated[4] != 0xE8 || repeated[5] != 0xE8
+      || ReadXyzIndividual(axes) != HAL_OK || !IsExpectedSample(axes))
   {
     HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
                       sizeof(errorMessage) - 1, 100);
     return;
   }
 
-  // Re-enable the default burst behavior and verify CTRL1 -> CTRL2 access.
+  // Restore the default and read all six consecutive output registers.
   if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
                         I2C_MEMADD_SIZE_8BIT, &enabled, 1, 100) != HAL_OK
-      || HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                           I2C_MEMADD_SIZE_8BIT, incrementingBurst, 2, 100) != HAL_OK
-      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL1,
-                          I2C_MEMADD_SIZE_8BIT, &ctrl1, 1, 100) != HAL_OK
-      || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
-                          I2C_MEMADD_SIZE_8BIT, &ctrl2, 1, 100) != HAL_OK
-      || ctrl1 != 0x50 || ctrl2 != 0x04)
+      || ReadXyzBurst(axes) != HAL_OK || !IsExpectedSample(axes))
   {
     HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
                       sizeof(errorMessage) - 1, 100);
@@ -174,6 +228,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   ValidateWhoAmI();
+  ValidateXyzRead();
   ValidateAutoIncrement();
 
   /* USER CODE END 2 */

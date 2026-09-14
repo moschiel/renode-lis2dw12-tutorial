@@ -23,12 +23,14 @@ CHECKS = [
     ("tests/transport.resc", "PASS transport: register storage", "stage1"),
     ("tests/who_am_i.resc", "PASS who_am_i: register behavior", "stage2"),
     ("tests/reference.resc", "PASS reference: WHO_AM_I baseline", "stage2"),
-    ("tests/auto_increment.resc", "PASS auto_increment: IF_ADD_INC behavior", "stage3"),
-    ("tests/compare_models.resc", "PASS compare: custom and reference identity/auto-increment", "stage3"),
-    ("tests/firmware_custom.resc", "PASS firmware: WHO_AM_I and IF_ADD_INC", "stage3"),
-    ("tests/firmware_reference.resc", "PASS reference firmware: I2C transactions complete; known auto-increment difference observed", "stage3"),
+    ("tests/xyz_read.resc", "PASS xyz_read: signed XYZ output registers", "stage3"),
+    ("tests/firmware_xyz.resc", "PASS firmware: WHO_AM_I and XYZ sample", "stage3"),
+    ("tests/auto_increment.resc", "PASS auto_increment: IF_ADD_INC behavior", "stage4"),
+    ("tests/compare_models.resc", "PASS compare: custom and reference identity/XYZ access", "stage4"),
+    ("tests/firmware_custom.resc", "PASS firmware: WHO_AM_I, XYZ, and IF_ADD_INC", "stage4"),
+    ("tests/firmware_reference.resc", "PASS reference firmware: I2C transactions complete; stimulus difference observed", "stage4"),
 ]
-STAGE_ORDER = {"stage1": 1, "stage2": 2, "stage3": 3}
+STAGE_ORDER = {"stage1": 1, "stage2": 2, "stage3": 3, "stage4": 4}
 
 
 def materialize(destination):
@@ -64,8 +66,31 @@ def materialize(destination):
 
 
 def write_model_for_stage(destination, stage):
-    if stage == "stage3":
+    if stage == "stage4":
         source = (ROOT / "models" / "LIS2DW12.cs").read_text(encoding="utf-8")
+    elif stage == "stage3":
+        source = (ROOT / "models" / "LIS2DW12.cs").read_text(encoding="utf-8")
+        control2 = re.compile(
+            r"            // DS11811 Rev\. 9, section 8\.5: only IF_ADD_INC affects behavior\.\n"
+            r"(?:.*\n)*?                \.WithTaggedFlag\(\"BOOT\", 7\);\n"
+        )
+        source, removed = control2.subn("", source, count=1)
+        if removed != 1:
+            raise RuntimeError("Could not remove stage-4 CTRL2 definition")
+        source = source.replace(
+            "        public byte Control2 => automaticAddressIncrement.Value ? (byte)0x04 : (byte)0x00;\n",
+            "",
+        )
+        source = source.replace("                IncrementSelectedRegister();", "                selectedRegister++;")
+        increment_helper = re.compile(
+            r"        private void IncrementSelectedRegister\(\)\n"
+            r"        \{\n"
+            r"(?:.*\n)*?        \}\n\n"
+        )
+        source, removed = increment_helper.subn("", source, count=1)
+        if removed != 1:
+            raise RuntimeError("Could not remove stage-4 increment helper")
+        source = source.replace("        private IFlagRegisterField automaticAddressIncrement;\n", "")
     else:
         document = (ROOT / "README.md").read_text(encoding="utf-8")
         match = STAGE_MODEL.search(document)
@@ -143,15 +168,19 @@ def check_gui(renode):
         simulation.advance(.1)
         state = simulation.state()
         assert state["registers"] == {
-            "WHO_AM_I": 0x44, "CTRL1": 0x50, "CTRL2": 0x04,
+            "WHO_AM_I": 0x44, "CTRL2": 0x04,
+            "OUT_X_L": 0xE8, "OUT_X_H": 0x03,
+            "OUT_Y_L": 0x0C, "OUT_Y_H": 0xFE,
+            "OUT_Z_L": 0x00, "OUT_Z_H": 0x40,
         }, state
+        assert state["sample"] == {"x": 1000, "y": -500, "z": 16384}, state
         assert state["uart"] == [
-            "WHO_AM_I: 0x44", "IF_ADD_INC: PASS",
+            "WHO_AM_I: 0x44", "XYZ: 1000,-500,16384", "IF_ADD_INC: PASS",
         ], state
     page = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
     assert all(label in page for label in (
-        "STM32L072", "WHO_AM_I", "CTRL1", "CTRL2", "ODR", "MODE",
-        "LP_MODE", "IF_ADD_INC", "SOFT_RESET", "BOOT",
+        "STM32L072", "WHO_AM_I", "CTRL2", "IF_ADD_INC", "SOFT_RESET", "BOOT",
+        "OUT_X_L", "OUT_X_H", "OUT_Y_L", "OUT_Y_H", "OUT_Z_L", "OUT_Z_H",
     ))
     print("PASS GUI support: register snapshot and firmware UART", flush=True)
 
@@ -164,8 +193,8 @@ def main():
         help="Persistent destination to clear, reconstruct, validate, and keep",
     )
     parser.add_argument(
-        "--stage", type=int, choices=range(1, 4), default=3,
-        help="Last tutorial stage to materialize and validate (default: 3)",
+        "--stage", type=int, choices=range(1, 5), default=4,
+        help="Last tutorial stage to materialize and validate (default: 4)",
     )
     args = parser.parse_args()
     executable = shutil.which(args.renode)
@@ -182,14 +211,14 @@ def main():
                 destination = Path(temporary)
                 materialize(destination)
                 check(executable, destination, args.stage)
-        if args.stage == 3:
+        if args.stage == 4:
             check_gui(executable)
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         print("FAIL:", error, file=sys.stderr)
         return 1
     scope = "stage 1" if args.stage == 1 else "stages 1-" + str(args.stage)
     print("PASS tutorial: " + scope
-          + (" and optional GUI" if args.stage == 3 else ""))
+          + (" and optional GUI" if args.stage == 4 else ""))
     return 0
 
 
