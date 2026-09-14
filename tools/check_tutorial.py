@@ -79,7 +79,7 @@ def write_model_for_stage(destination, stage):
             source = source.replace("            Interrupt1 = new GPIO();\n", "")
             control4 = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.7: this stage models only INT1_DRDY\.\n"
-                r"            RegistersCollection\.DefineRegister\(0x23, 0x00\)\n"
+                r"            RegistersCollection\.DefineRegister\(\(byte\)RegisterId\.Control4Int1PadControl, 0x00\)\n"
                 r"                \.WithFlag\(0, out dataReadyInterruptEnabled, name: \"INT1_DRDY\"\)\n"
                 r"                \.WithWriteCallback\(\(_, __\) => UpdateInterrupt1\(\)\);\n"
             )
@@ -103,11 +103,12 @@ def write_model_for_stage(destination, stage):
             if removed != 1:
                 raise RuntimeError("Could not remove stage-6 interrupt helper")
             source = source.replace("        private IFlagRegisterField dataReadyInterruptEnabled;\n", "")
+            source = source.replace("            Control4Int1PadControl = 0x23,\n", "")
 
         if STAGE_ORDER[stage] < 5:
             control1 = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.4: ODR=0 selects power-down\.\n"
-                r"            RegistersCollection\.DefineRegister\(0x20, 0x00\)\n"
+                r"            RegistersCollection\.DefineRegister\(\(byte\)RegisterId\.Control1, 0x00\)\n"
                 r"                \.WithValueField\(4, 4, out outputDataRate, name: \"ODR\"\)\n"
                 r"                \.WithWriteCallback\(\(_, __\) => HandleAcquisitionConfigurationChanged\(\)\);\n"
             )
@@ -116,7 +117,7 @@ def write_model_for_stage(destination, stage):
                 raise RuntimeError("Could not remove stage-5 CTRL1 definition")
             status = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.11: DRDY reports XYZ availability\.\n"
-                r"            RegistersCollection\.DefineRegister\(0x27, 0x00\)\n"
+                r"            RegistersCollection\.DefineRegister\(\(byte\)RegisterId\.Status, 0x00\)\n"
                 r"                \.WithFlag\(0, FieldMode\.Read, valueProviderCallback: _ => dataReady, name: \"DRDY\"\);\n"
             )
             source, removed = status.subn("", source, count=1)
@@ -127,6 +128,8 @@ def write_model_for_stage(destination, stage):
             source = source.replace("        public bool AcquisitionEnabled => outputDataRate.Value != 0;\n", "")
             source = source.replace("        private IValueRegisterField outputDataRate;\n", "")
             source = source.replace("        private bool dataReady;\n", "")
+            source = source.replace("            Control1 = 0x20,\n", "")
+            source = source.replace("            Status = 0x27,\n", "")
             source = source.replace("                AcknowledgeDataReady(register);\n", "")
             source = source.replace(
                 "        {\n            dataReady = false;\n            RegistersCollection.Reset();\n",
@@ -171,7 +174,7 @@ def write_model_for_stage(destination, stage):
         if STAGE_ORDER[stage] < 4:
             control2 = re.compile(
                 r"            // DS11811 Rev\. 9, datasheet section 8\.5: this stage models only IF_ADD_INC\.\n"
-                r"            RegistersCollection\.DefineRegister\(0x21, 0x04\)\.WithFlag\(2, out automaticAddressIncrement, name: \"IF_ADD_INC\"\);\n"
+                r"            RegistersCollection\.DefineRegister\(\(byte\)RegisterId\.Control2, 0x04\)\.WithFlag\(2, out automaticAddressIncrement, name: \"IF_ADD_INC\"\);\n"
             )
             source, removed = control2.subn("", source, count=1)
             if removed != 1:
@@ -190,6 +193,7 @@ def write_model_for_stage(destination, stage):
             if removed != 1:
                 raise RuntimeError("Could not remove stage-4 increment helper")
             source = source.replace("        private IFlagRegisterField automaticAddressIncrement;\n", "")
+            source = source.replace("            Control2 = 0x21,\n", "")
     else:
         document = (ROOT / "README.md").read_text(encoding="utf-8")
         match = STAGE_MODEL.search(document)
@@ -203,11 +207,22 @@ def write_model_for_stage(destination, stage):
             )
             identity = (
                 "// DS11811 Rev. 9, section 8.3: WHO_AM_I is read-only and resets to 0x44.\n"
-                "            RegistersCollection.DefineRegister(0x0F, 0x44).WithValueField(0, 8, FieldMode.Read, name: \"WHO_AM_I\");"
+                "            RegistersCollection.DefineRegister((byte)RegisterId.WhoAmI, 0x44).WithValueField(0, 8, FieldMode.Read, name: \"WHO_AM_I\");"
             )
             if temporary not in source:
                 raise RuntimeError("Temporary stage-1 register block changed")
             source = source.replace(temporary, identity)
+            register_map = (
+                "        // Register addresses from DS11811 Rev. 9, datasheet section 8.\n"
+                "        private enum RegisterId : byte\n"
+                "        {\n"
+                "            WhoAmI = 0x0F,\n"
+                "        }\n\n"
+            )
+            source = source.replace(
+                "        private byte selectedRegister;\n",
+                register_map + "        private byte selectedRegister;\n",
+            )
     target = destination / "models" / "LIS2DW12.cs"
     target.write_text(source, encoding="utf-8")
 

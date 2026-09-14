@@ -12,7 +12,8 @@ Hardware behavior comes from the [ST DS11811 Rev. 9 datasheet](https://www.st.co
 The scope is a reduced but practical flow: identify the device, apply basic
 initialization, read XYZ samples, and observe data-ready by polling or interrupt.
 The same firmware is run against our model and Renode's official model for comparison.
-The GUI and utility scripts are 100% *vibe coded* support assets and are not
+The [optional GUI](#7-optional-interactive-web-view-vibe-coded) and utility
+scripts are 100% *vibe coded* support assets and are not
 part of the modeling lesson. See [Limits and References](#8-limits-and-references)
 for the detailed boundaries.
 
@@ -382,12 +383,24 @@ In `models/LIS2DW12.cs`, replace the temporary `TRANSPORT_TEST` definition from
 tutorial section 1 with the register described in **DS11811 Rev. 9, datasheet section 8.3**:
 
 ```csharp
+// Register addresses from DS11811 Rev. 9, datasheet section 8.
+private enum RegisterId : byte
+{
+    WhoAmI = 0x0F,
+}
+```
+
+Use the ID when defining the register in the constructor:
+
+```csharp
 // DS11811 Rev. 9, datasheet section 8.3: WHO_AM_I is read-only and resets to 0x44.
-RegistersCollection.DefineRegister(0x0F, 0x44).WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
+RegistersCollection.DefineRegister((byte)RegisterId.WhoAmI, 0x44).WithValueField(0, 8, FieldMode.Read, name: "WHO_AM_I");
 ```
 
 The `FieldMode.Read` argument expresses the access rule from the datasheet:
-writes to this register are ignored by the model.
+writes to this register are ignored by the model. `RegisterId` keeps the
+datasheet addresses in one typed register map instead of scattering numeric
+addresses through the implementation.
 
 ### 2.3 Validate the model
 
@@ -546,18 +559,29 @@ This tutorial injects deterministic raw register data directly into the model.
 
 ### 3.2 Define the XYZ registers
 
-Add these definitions after `WHO_AM_I` in the constructor:
+Extend `RegisterId` with the six output addresses:
+
+```csharp
+OutputXLow = 0x28,
+OutputXHigh = 0x29,
+OutputYLow = 0x2A,
+OutputYHigh = 0x2B,
+OutputZLow = 0x2C,
+OutputZHigh = 0x2D,
+```
+
+Then add these definitions after `WHO_AM_I` in the constructor:
 
 ```csharp
 // DS11811 Rev. 9, datasheet sections 8.12-8.17: each axis is exposed as a
 // little-endian, signed 16-bit value split across two registers.
 // Each `out` parameter receives a handle to the field in that register.
-RegistersCollection.DefineRegister(0x28, 0x00).WithValueField(0, 8, out outputXLow, FieldMode.Read, name: "OUT_X_L");
-RegistersCollection.DefineRegister(0x29, 0x00).WithValueField(0, 8, out outputXHigh, FieldMode.Read, name: "OUT_X_H");
-RegistersCollection.DefineRegister(0x2A, 0x00).WithValueField(0, 8, out outputYLow, FieldMode.Read, name: "OUT_Y_L");
-RegistersCollection.DefineRegister(0x2B, 0x00).WithValueField(0, 8, out outputYHigh, FieldMode.Read, name: "OUT_Y_H");
-RegistersCollection.DefineRegister(0x2C, 0x00).WithValueField(0, 8, out outputZLow, FieldMode.Read, name: "OUT_Z_L");
-RegistersCollection.DefineRegister(0x2D, 0x00).WithValueField(0, 8, out outputZHigh, FieldMode.Read, name: "OUT_Z_H");
+RegistersCollection.DefineRegister((byte)RegisterId.OutputXLow, 0x00).WithValueField(0, 8, out outputXLow, FieldMode.Read, name: "OUT_X_L");
+RegistersCollection.DefineRegister((byte)RegisterId.OutputXHigh, 0x00).WithValueField(0, 8, out outputXHigh, FieldMode.Read, name: "OUT_X_H");
+RegistersCollection.DefineRegister((byte)RegisterId.OutputYLow, 0x00).WithValueField(0, 8, out outputYLow, FieldMode.Read, name: "OUT_Y_L");
+RegistersCollection.DefineRegister((byte)RegisterId.OutputYHigh, 0x00).WithValueField(0, 8, out outputYHigh, FieldMode.Read, name: "OUT_Y_H");
+RegistersCollection.DefineRegister((byte)RegisterId.OutputZLow, 0x00).WithValueField(0, 8, out outputZLow, FieldMode.Read, name: "OUT_Z_L");
+RegistersCollection.DefineRegister((byte)RegisterId.OutputZHigh, 0x00).WithValueField(0, 8, out outputZHigh, FieldMode.Read, name: "OUT_Z_H");
 ```
 
 The `out` arguments assign `IValueRegisterField` handles. 
@@ -712,11 +736,17 @@ flowchart LR
 
 ### 4.2 Define CTRL2
 
-Add the register after `WHO_AM_I`:
+Add `Control2` to `RegisterId`:
+
+```csharp
+Control2 = 0x21,
+```
+
+Then define the register in the constructor:
 
 ```csharp
 // DS11811 Rev. 9, datasheet section 8.5: this stage models only IF_ADD_INC field.
-RegistersCollection.DefineRegister(0x21, 0x04).WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC");
+RegistersCollection.DefineRegister((byte)RegisterId.Control2, 0x04).WithFlag(2, out automaticAddressIncrement, name: "IF_ADD_INC");
 ```
 
 Only `IF_ADD_INC` field from CTRL2 register will be implemented. Declare its handle:
@@ -836,16 +866,23 @@ clears `DRDY`; see application note AN5038, section **3.2**.
 
 ### 5.2 Define CTRL1 and STATUS
 
-Add these definitions after `WHO_AM_I`:
+Add both addresses to `RegisterId`:
+
+```csharp
+Control1 = 0x20,
+Status = 0x27,
+```
+
+Then define the registers in the constructor:
 
 ```csharp
 // DS11811 Rev. 9, datasheet section 8.4: ODR=0 selects power-down.
-RegistersCollection.DefineRegister(0x20, 0x00)
+RegistersCollection.DefineRegister((byte)RegisterId.Control1, 0x00)
     .WithValueField(4, 4, out outputDataRate, name: "ODR")
     .WithWriteCallback((_, __) => HandleAcquisitionConfigurationChanged());
 
 // DS11811 Rev. 9, datasheet section 8.11: DRDY reports XYZ availability.
-RegistersCollection.DefineRegister(0x27, 0x00)
+RegistersCollection.DefineRegister((byte)RegisterId.Status, 0x00)
     .WithFlag(0, FieldMode.Read,
         valueProviderCallback: _ => dataReady, name: "DRDY");
 ```
@@ -900,14 +937,17 @@ IncrementSelectedRegister();
 ```
 
 The helper models the default acknowledgement rule without making the public
-GUI inspection API consume the event:
+[GUI inspection API](#7-optional-interactive-web-view-vibe-coded) consume the
+event:
 
 ```csharp
 private void AcknowledgeDataReady(byte register)
 {
     // AN5038 section 3.2: in the default latched mode, reading any axis
     // high byte acknowledges the available XYZ set and clears DRDY.
-    if(dataReady && (register == 0x29 || register == 0x2B || register == 0x2D))
+    if(dataReady && (register == (byte)RegisterId.OutputXHigh
+        || register == (byte)RegisterId.OutputYHigh
+        || register == (byte)RegisterId.OutputZHigh))
     {
         dataReady = false;
     }
@@ -996,8 +1036,11 @@ public GPIO Interrupt1 { get; }
 Define the routing bit and recalculate the pin whenever firmware changes it:
 
 ```csharp
+// Add this address to RegisterId.
+Control4Int1PadControl = 0x23,
+
 // DS11811 Rev. 9, datasheet section 8.7: this stage models only INT1_DRDY.
-RegistersCollection.DefineRegister(0x23, 0x00)
+RegistersCollection.DefineRegister((byte)RegisterId.Control4Int1PadControl, 0x00)
     .WithFlag(0, out dataReadyInterruptEnabled, name: "INT1_DRDY")
     .WithWriteCallback((_, __) => UpdateInterrupt1());
 ```
@@ -1091,8 +1134,9 @@ components and dashed projection guides. It is deliberately independent from
 the model and is not a physics lesson:
 
 `SetSample`, `ReadRegister`, and `WriteRegister` are public integration points
-for automated tests and this optional GUI. Their comments in the model make it
-clear when an operation bypasses the I2C master.
+for automated tests and this [optional GUI](#7-optional-interactive-web-view-vibe-coded).
+Their comments in the model make it clear when an operation bypasses the I2C
+master.
 
 ```sh
 python tools/lab.py
@@ -1112,7 +1156,8 @@ without a dedicated test.
 Electrical characteristics, analog filtering, noise, power consumption, and
 exact physical performance are not simulated. FIFO, tap, free-fall, orientation,
 wake-up, self-test, and temperature features are outside the sensor model. The
-optional GUI only calculates a gravity vector and injects it as a raw sample.
+[optional GUI](#7-optional-interactive-web-view-vibe-coded) only calculates
+a gravity vector and injects it as a raw sample.
 SPI also remains outside the transport scope.
 
 The result is a teaching model for representative Renode patterns, not a complete
