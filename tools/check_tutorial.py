@@ -32,8 +32,8 @@ CHECKS = [
     ("tests/firmware_polling.resc", "PASS firmware: data-ready polling", "stage5"),
     ("tests/data_ready_interrupt.resc", "PASS data_ready_interrupt: DRDY lifecycle drives INT1", "stage6"),
     ("tests/firmware_data_ready_interrupt.resc", "PASS firmware: data-ready interrupt", "stage6"),
-    ("tests/compare_models.resc", "PASS compare: custom and reference identity/XYZ access", "stage6"),
-    ("tests/firmware_reference.resc", "PASS reference firmware: I2C transactions complete; stimulus difference observed", "stage6"),
+    ("tests/compare_models.resc", "PASS compare: custom and reference identity/XYZ conversion", "stage6"),
+    ("tests/firmware_reference.resc", "PASS reference firmware: same XYZ and IF_ADD_INC behavior", "stage6"),
 ]
 STAGE_ORDER = {"stage1": 1, "stage2": 2, "stage3": 3, "stage4": 4, "stage5": 5, "stage6": 6}
 
@@ -147,22 +147,25 @@ def write_model_for_stage(destination, stage):
 
             guarded_sample = re.compile(
                 r"        // Public stimulus API used by automated tests and the optional GUI\.\n"
-                r"        // It represents a completed conversion without simulating motion or analog timing\.\n"
-                r"        public void SetSample\(int x, int y, int z\)\n"
+                r"        // Acceleration is expressed in g, matching the official Renode model\.\n"
+                r"        public void FeedAccelerationSample\(decimal x, decimal y, decimal z\)\n"
                 r"        \{\n"
                 r"(?:.*\n)*?"
-                r"            this\.Log\(LogLevel\.Debug, \"Sample updated to X=\{0\}, Y=\{1\}, Z=\{2\}\.\", x, y, z\);\n"
+                r"            this\.Log\(LogLevel\.Debug, \"Acceleration sample updated to X=\{0\}g, Y=\{1\}g, Z=\{2\}g\.\", x, y, z\);\n"
                 r"        \}\n",
             )
             stage3_sample = (
                 "        // Public stimulus API used by automated tests and the optional GUI.\n"
-                "        // It supplies raw data without simulating motion or analog conversion.\n"
-                "        public void SetSample(int x, int y, int z)\n"
+                "        // Acceleration is expressed in g, matching the official Renode model.\n"
+                "        public void FeedAccelerationSample(decimal x, decimal y, decimal z)\n"
                 "        {\n"
-                "            SetAxis(x, outputXLow, outputXHigh, nameof(x));\n"
-                "            SetAxis(y, outputYLow, outputYHigh, nameof(y));\n"
-                "            SetAxis(z, outputZLow, outputZHigh, nameof(z));\n"
-                "            this.Log(LogLevel.Debug, \"Sample updated to X={0}, Y={1}, Z={2}.\", x, y, z);\n"
+                "            SetAxis(x, outputXLow, outputXHigh);\n"
+                "            SetAxis(y, outputYLow, outputYHigh);\n"
+                "            SetAxis(z, outputZLow, outputZHigh);\n"
+                "            AccelerationX = x;\n"
+                "            AccelerationY = y;\n"
+                "            AccelerationZ = z;\n"
+                "            this.Log(LogLevel.Debug, \"Acceleration sample updated to X={0}g, Y={1}g, Z={2}g.\", x, y, z);\n"
                 "        }\n"
             )
             source, replaced = guarded_sample.subn(stage3_sample, source, count=1)
@@ -300,31 +303,31 @@ def check_gui(renode):
         # The firmware enables acquisition before this stimulus represents a
         # completed conversion, just like an interactive GUI update.
         simulation.advance(.05)
-        simulation.set_sample(1000, -500, 16384)
+        simulation.set_sample(0.0976, -0.1952, 0.976)
         simulation.advance(.05)
         state = simulation.state()
         assert state["registers"] == {
             "WHO_AM_I": 0x44, "CTRL1": 0x20, "CTRL2": 0x04,
             "CTRL4_INT1_PAD_CTRL": 0x01, "STATUS": 0x01,
-            "OUT_X_L": 0xE8, "OUT_X_H": 0x03,
-            "OUT_Y_L": 0x0C, "OUT_Y_H": 0xFE,
-            "OUT_Z_L": 0x00, "OUT_Z_H": 0x40,
+            "OUT_X_L": 0x40, "OUT_X_H": 0x06,
+            "OUT_Y_L": 0x80, "OUT_Y_H": 0xF3,
+            "OUT_Z_L": 0x80, "OUT_Z_H": 0x3E,
         }, state
-        assert state["sample"] == {"x": 1000, "y": -500, "z": 16384}, state
+        assert state["sample"] == {"x": 1600, "y": -3200, "z": 16000}, state
         assert state["uart"] == [
-            "Hello from STM32", "WHO_AM_I: 0x44", "XYZ: 1000,-500,16384", "IF_ADD_INC: PASS",
+            "Hello from STM32", "WHO_AM_I: 0x44", "XYZ: 1600,-3200,16000", "IF_ADD_INC: PASS",
             "DRDY_POLL: PASS", "DRDY_INT1: PASS",
         ], state
         assert state["interrupt1"], state
-        simulation.set_sample(-1, 2, -3)
-        assert simulation.state()["sample"] == {"x": -1, "y": 2, "z": -3}
+        simulation.set_sample(-0.000976, 0.001952, -0.002928)
+        assert simulation.state()["sample"] == {"x": -16, "y": 32, "z": -48}
         simulation.write_register(0x20, 0x00)
         state = simulation.state()
         assert state["registers"]["STATUS"] == 0 and not state["interrupt1"], state
         simulation.write_register(0x20, 0x20)
         state = simulation.state()
         assert state["registers"]["STATUS"] == 0 and not state["interrupt1"], state
-        simulation.set_sample(4, 5, 6)
+        simulation.set_sample(0.003904, 0.00488, 0.005856)
         state = simulation.state()
         assert state["registers"]["STATUS"] == 1 and state["interrupt1"], state
     page = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

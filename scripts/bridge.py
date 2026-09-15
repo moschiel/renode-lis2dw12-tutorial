@@ -43,6 +43,11 @@ def mc_lab_state():
             'y': int(accel.SampleY),
             'z': int(accel.SampleZ),
         },
+        'acceleration': {
+            'x': float(accel.AccelerationX),
+            'y': float(accel.AccelerationY),
+            'z': float(accel.AccelerationZ),
+        },
         'interrupt1': bool(accel.Interrupt1.IsSet),
         'uart': list(uart_lines),
     }))

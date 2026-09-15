@@ -2,6 +2,13 @@ mach create "lis2dw12-firmware-reference"
 machine LoadPlatformDescription @platforms/stm32_lis2dw12_reference.repl
 sysbus LoadELF @firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
 include @scripts/uart_capture.py
+include @scripts/register_ids.py
+python "dev = monitor.Machine['sysbus.i2c1.accel']"
+python "from System import Array, Byte"
+python "dev.Reset()"
+python "dev.Write(Array[Byte]([RegisterId.CTRL1, 0x20])); dev.FinishTransmission()"
+# The firmware reads OUT_X_L repeatedly while testing both access modes.
+python "dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'), 16)"
 emulation RunFor "0.100"
 assert_reference_firmware_uart
 finish_firmware_test

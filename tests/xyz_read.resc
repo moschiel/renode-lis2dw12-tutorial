@@ -8,10 +8,11 @@ python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "assert list(dev.Read(1)) == [0], 'OUT_X_L reset value mismatch'"
 python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [0, 0, 0], 'XYZ reset values mismatch'"
 
-# The tutorial injects raw 16-bit values instead of simulating physical motion.
-# X=1000 -> 0x03E8, Y=-500 -> 0xFE0C, Z=16384 -> 0x4000.
+# The input is expressed in g. The default 12-bit mode converts it to
+# X=1600 (0x0640), Y=-3200 (0xF380), Z=16000 (0x3E80).
 python "dev.FinishTransmission()"
-python "dev.SetSample(1000, -500, 16384)"
+python "if hasattr(dev, 'AcquisitionEnabled'): dev.WriteRegister(RegisterId.CTRL1, 0x20)"
+python "dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'))"
 python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "xLow = list(dev.Read(1))[0]"
 python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_X_H]))"
@@ -24,15 +25,15 @@ python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_Z_L]))"
 python "zLow = list(dev.Read(1))[0]"
 python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_Z_H]))"
 python "zHigh = list(dev.Read(1))[0]"
-python "assert [xLow, xHigh, yLow, yHigh, zLow, zHigh] == [0xE8, 0x03, 0x0C, 0xFE, 0x00, 0x40], 'XYZ individual encoding mismatch'"
-python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [1000, -500, 16384], 'XYZ model state mismatch'"
+python "assert [xLow, xHigh, yLow, yHigh, zLow, zHigh] == [0x40, 0x06, 0x80, 0xF3, 0x80, 0x3E], 'XYZ individual encoding mismatch'"
+python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [1600, -3200, 16000], 'XYZ model state mismatch'"
 
 # Output registers are read-only to the I2C master.
 python "dev.FinishTransmission()"
 python "dev.Write(Array[Byte]([RegisterId.OUT_X_L, 0x00, 0x00]))"
 python "dev.FinishTransmission()"
 python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"
-python "assert list(dev.Read(1)) == [0xE8], 'XYZ output registers must not be writable'"
+python "assert list(dev.Read(1)) == [0x40], 'XYZ output registers must not be writable'"
 
 python "dev.Reset()"
 python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"

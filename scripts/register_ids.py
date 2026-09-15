@@ -14,3 +14,10 @@ class RegisterId:
     OUT_Y_H = 0x2B
     OUT_Z_L = 0x2C
     OUT_Z_H = 0x2D
+
+
+def acceleration_g(value):
+    """Create an invariant System.Decimal acceleration value expressed in g."""
+    from System import Decimal
+    from System.Globalization import CultureInfo
+    return Decimal.Parse(str(value), CultureInfo.InvariantCulture)

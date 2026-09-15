@@ -18,7 +18,7 @@ class Lab:
         # Let firmware enable acquisition, then deliver one completed conversion
         # so the initial polling and interrupt demonstrations can finish.
         renode.advance(.05)
-        renode.set_sample(1000, -500, 16384)
+        renode.set_sample(0.0976, -0.1952, 0.976)
         renode.advance(.05)
         self.snapshot = renode.state()
         renode.start()
@@ -86,7 +86,7 @@ def handler_for(lab):
                     raise ValueError('request too large')
                 body = json.loads(self.rfile.read(length) or b'{}')
                 if self.path == '/api/sample':
-                    lab.set_sample(int(body['x']), int(body['y']), int(body['z']))
+                    lab.set_sample(float(body['x']), float(body['y']), float(body['z']))
                 elif self.path == '/api/register':
                     lab.write_register(int(body['address']), int(body['value']))
                 else:

@@ -138,13 +138,13 @@ static HAL_StatusTypeDef ReadXyzIndividual(int16_t axes[3])
 
 static uint8_t IsExpectedSample(const int16_t axes[3])
 {
-  return axes[0] == 1000 && axes[1] == -500 && axes[2] == 16384;
+  return axes[0] == 1600 && axes[1] == -3200 && axes[2] == 16000;
 }
 
 static void ValidateXyzRead(void)
 {
   int16_t axes[3] = {0};
-  const uint8_t successMessage[] = "XYZ: 1000,-500,16384\r\n";
+  const uint8_t successMessage[] = "XYZ: 1600,-3200,16000\r\n";
   const uint8_t errorMessage[] = "XYZ: ERROR\r\n";
   const uint8_t *message = errorMessage;
   uint16_t messageSize = sizeof(errorMessage) - 1;
@@ -167,14 +167,17 @@ static void ValidateAutoIncrement(void)
   const uint8_t successMessage[] = "IF_ADD_INC: PASS\r\n";
   const uint8_t errorMessage[] = "IF_ADD_INC: ERROR\r\n";
 
-  // Without address increment, a burst repeatedly reads OUT_X_L.
+  // Reuse the sample validated by ValidateXyzRead(). Its X value is 0.0976 g:
+  // 0.0976 g / 0.000976 g/LSB = 100 counts; 100 << 4 = 0x0640,
+  // so OUT_X_L contains 0x40. With address increment disabled, every byte
+  // in this burst must therefore repeat 0x40 from OUT_X_L.
   if (HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
                         I2C_MEMADD_SIZE_8BIT, &disabled, 1, 100) != HAL_OK
       || HAL_I2C_Mem_Read(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_OUT_X_L,
                           I2C_MEMADD_SIZE_8BIT, repeated, sizeof(repeated), 100) != HAL_OK
-      || repeated[0] != 0xE8 || repeated[1] != 0xE8
-      || repeated[2] != 0xE8 || repeated[3] != 0xE8
-      || repeated[4] != 0xE8 || repeated[5] != 0xE8
+      || repeated[0] != 0x40 || repeated[1] != 0x40
+      || repeated[2] != 0x40 || repeated[3] != 0x40
+      || repeated[4] != 0x40 || repeated[5] != 0x40
       || ReadXyzIndividual(axes) != HAL_OK || !IsExpectedSample(axes))
   {
     HAL_UART_Transmit(&huart2, (uint8_t *)errorMessage,
@@ -252,10 +255,23 @@ static void ValidateDataReadyInterrupt(void)
   HAL_UART_Transmit(&huart2, (uint8_t *)message, messageSize, 100);
 }
 
+static void FormatAccelerationG(int16_t raw, char *text, size_t textSize)
+{
+  // Default 12-bit mode: the signed sample is left-aligned by four bits and
+  // each count represents 976 micro-g (DS11811 Rev. 9, Table 3).
+  int32_t microG = ((int32_t)raw / 16) * 976;
+  uint32_t magnitude = microG < 0 ? (uint32_t)(-microG) : (uint32_t)microG;
+
+  snprintf(text, textSize, "%s%lu.%06lu", microG < 0 ? "-" : "",
+           (unsigned long)(magnitude / 1000000U),
+           (unsigned long)(magnitude % 1000000U));
+}
+
 static void ReportDataReadySample(void)
 {
   int16_t axes[3] = {0};
-  char message[48];
+  char values[3][16];
+  char message[72];
 
   if (!dataReadyInterruptSeen)
   {
@@ -269,8 +285,11 @@ static void ReportDataReadySample(void)
     return;
   }
 
-  int length = snprintf(message, sizeof(message), "DRDY XYZ: %d,%d,%d\r\n",
-                        axes[0], axes[1], axes[2]);
+  FormatAccelerationG(axes[0], values[0], sizeof(values[0]));
+  FormatAccelerationG(axes[1], values[1], sizeof(values[1]));
+  FormatAccelerationG(axes[2], values[2], sizeof(values[2]));
+  int length = snprintf(message, sizeof(message), "DRDY XYZ [g]: %s,%s,%s\r\n",
+                        values[0], values[1], values[2]);
   if (length > 0)
   {
     HAL_UART_Transmit(&huart2, (uint8_t *)message, (uint16_t)length, 100);

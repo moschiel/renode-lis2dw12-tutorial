@@ -560,14 +560,16 @@ The LIS2DW12 exposes each axis through two consecutive read-only registers.
 Datasheet sections **8.12 through 8.17** describe the low byte followed by the high byte;
 together they form a signed 16-bit value in two's complement.
 
-At reset, all six registers contain zero.
-This tutorial injects deterministic raw register data directly into the model.
+At reset, all six registers contain zero. The model accepts acceleration in
+`g`, like Renode's official LIS2DW12 model, and converts it using the sensor's
+default +/-2 g, 12-bit mode. Datasheet Table 3 gives its `0.976 mg/LSB`
+sensitivity; the 12-bit result is left-aligned in the 16-bit output pair.
 
-| Axis | Raw value | Low byte | High byte |
-| --- | ---: | ---: | ---: |
-| X | `1000` (`0x03E8`) | `0xE8` | `0x03` |
-| Y | `-500` (`0xFE0C`) | `0x0C` | `0xFE` |
-| Z | `16384` (`0x4000`) | `0x00` | `0x40` |
+| Axis | Acceleration | 12-bit count | Raw 16-bit value | Bytes (L, H) |
+| --- | ---: | ---: | ---: | ---: |
+| X | `0.0976 g` | `100` | `1600` (`0x0640`) | `0x40, 0x06` |
+| Y | `-0.1952 g` | `-200` | `-3200` (`0xF380`) | `0x80, 0xF3` |
+| Z | `0.976 g` | `1000` | `16000` (`0x3E80`) | `0x80, 0x3E` |
 
 ### 3.2 Define the XYZ registers
 
@@ -618,25 +620,28 @@ read-only registers:
 public short SampleX => ReadAxis(outputXLow, outputXHigh);
 public short SampleY => ReadAxis(outputYLow, outputYHigh);
 public short SampleZ => ReadAxis(outputZLow, outputZHigh);
+public decimal AccelerationX { get; private set; }
+public decimal AccelerationY { get; private set; }
+public decimal AccelerationZ { get; private set; }
 
-public void SetSample(int x, int y, int z)
+public void FeedAccelerationSample(decimal x, decimal y, decimal z)
 {
-    SetAxis(x, outputXLow, outputXHigh, nameof(x));
-    SetAxis(y, outputYLow, outputYHigh, nameof(y));
-    SetAxis(z, outputZLow, outputZHigh, nameof(z));
-    this.Log(LogLevel.Debug, "Sample updated to X={0}, Y={1}, Z={2}.", x, y, z);
+    SetAxis(x, outputXLow, outputXHigh);
+    SetAxis(y, outputYLow, outputYHigh);
+    SetAxis(z, outputZLow, outputZHigh);
+    AccelerationX = x;
+    AccelerationY = y;
+    AccelerationZ = z;
+    this.Log(LogLevel.Debug, "Acceleration sample updated to X={0}g, Y={1}g, Z={2}g.", x, y, z);
 }
 
-private static void SetAxis(int value, IValueRegisterField low,
-    IValueRegisterField high, string parameterName)
+private static void SetAxis(decimal acceleration, IValueRegisterField low,
+    IValueRegisterField high)
 {
-    if(value < short.MinValue || value > short.MaxValue)
-    {
-        throw new ArgumentOutOfRangeException(parameterName,
-            "Raw axis values must fit in a signed 16-bit register pair.");
-    }
-
-    var raw = unchecked((ushort)(short)value);
+    // DS11811 Rev. 9, Table 3: reset mode is +/-2 g, 12 bit, 0.976 mg/LSB.
+    var measurement = (int)(acceleration * 1000m / DefaultSensitivityMillig);
+    measurement = Math.Max(Minimum12BitValue, Math.Min(Maximum12BitValue, measurement));
+    var raw = unchecked((ushort)(short)(measurement << DefaultOutputShift));
     // These handles update the low and high bytes in the actual register fields.
     low.Value = (byte)raw;
     high.Value = (byte)(raw >> 8);
@@ -647,6 +652,11 @@ private static short ReadAxis(IValueRegisterField low, IValueRegisterField high)
     var raw = (ushort)(low.Value | (high.Value << 8));
     return unchecked((short)raw);
 }
+
+private const decimal DefaultSensitivityMillig = 0.976m;
+private const int DefaultOutputShift = 4;
+private const int Minimum12BitValue = -0x800;
+private const int Maximum12BitValue = 0x7FF;
 ```
 
 ### 3.3 Validate the model
@@ -699,7 +709,7 @@ static HAL_StatusTypeDef ReadXyzIndividual(int16_t axes[3])
 USART2. The supplied firmware already contains this code and is called after
 `ValidateWhoAmI()`.
 
-`tests/firmware_xyz.resc` injects the same raw sample before starting the STM32,
+`tests/firmware_xyz.resc` supplies the same physical acceleration before starting the STM32,
 then checks only the capabilities completed through this section:
 
 ```sh
@@ -707,7 +717,7 @@ renode --console --plain tests/firmware_xyz.resc
 ```
 
 The test opens the UART analyzer automatically. It should display
-`XYZ: 1000,-500,16384`; the Monitor prints only the validation result:
+`XYZ: 1600,-3200,16000`; the Monitor prints only the validation result:
 
 ```text
 PASS firmware: XYZ sample
@@ -814,6 +824,12 @@ static HAL_StatusTypeDef ReadXyzBurst(int16_t axes[3])
 that a disabled burst repeats `OUT_X_L`, individual reads still reconstruct all
 axes, and re-enabling the reset behavior restores the six-byte burst:
 
+The firmware does not prepare another sample inside `ValidateAutoIncrement()`.
+It reuses the sample previously checked by `ValidateXyzRead()`. For its X axis,
+`0.0976 g / 0.000976 g/LSB = 100` counts; after the four-bit left alignment,
+`100 << 4 = 0x0640`. Therefore, `OUT_X_L` contains `0x40`, which is the byte
+expected repeatedly while `IF_ADD_INC` is disabled.
+
 ```sh
 renode --console --disable-gui --plain tests/auto_increment.resc
 ```
@@ -828,7 +844,8 @@ uint8_t enabled = 0x04;
 
 HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
                   I2C_MEMADD_SIZE_8BIT, &disabled, 1, 100);
-// A burst now repeats OUT_X_L; individual reads still recover XYZ.
+// OUT_X_L is 0x40 from the sample validated in the previous step.
+// A burst now repeats that byte; individual reads still recover XYZ.
 ReadXyzIndividual(axes);
 
 HAL_I2C_Mem_Write(&hi2c1, LIS2DW12_I2C_ADDRESS, LIS2DW12_CTRL2,
@@ -858,15 +875,15 @@ sample is waiting for firmware. See datasheet sections **8.4** and **8.11**.
 
 This reduced model keeps the digital dependency used by polling firmware. It
 does not simulate the different sampling frequencies encoded by non-zero `ODR`
-values. Instead, the public `SetSample` method represents one completed
+values. Instead, the public `FeedAccelerationSample` method represents one completed
 conversion:
 
 ```mermaid
 flowchart LR
-    P[ODR = 0<br/>Power-down] -->|SetSample| I[Ignored<br/>XYZ unchanged]
+    P[ODR = 0<br/>Power-down] -->|FeedAccelerationSample| I[Ignored<br/>XYZ unchanged]
     I --> P
     P -->|Write non-zero ODR| A[Acquisition enabled<br/>DRDY = 0]
-    A -->|SetSample| D[New XYZ available<br/>DRDY = 1]
+    A -->|FeedAccelerationSample| D[New XYZ available<br/>DRDY = 1]
     D -->|Read an axis high byte| A
     A -->|Write ODR = 0| P
     D -->|Write ODR = 0| P
@@ -909,11 +926,11 @@ private IValueRegisterField outputDataRate;
 private IFlagRegisterField dataReady;
 ```
 
-Section 3 already added a simpler `SetSample` method. **Replace that entire
+Section 3 already added a simpler `FeedAccelerationSample` method. **Replace that entire
 method** with the version below; do not keep both implementations:
 
 ```csharp
-public void SetSample(int x, int y, int z)
+public void FeedAccelerationSample(decimal x, decimal y, decimal z)
 {
     // CTRL1.ODR=0 is power-down, so no conversion can update the output registers.
     if(!AcquisitionEnabled)
@@ -922,9 +939,12 @@ public void SetSample(int x, int y, int z)
         return;
     }
 
-    SetAxis(x, outputXLow, outputXHigh, nameof(x));
-    SetAxis(y, outputYLow, outputYHigh, nameof(y));
-    SetAxis(z, outputZLow, outputZHigh, nameof(z));
+    SetAxis(x, outputXLow, outputXHigh);
+    SetAxis(y, outputYLow, outputYHigh);
+    SetAxis(z, outputZLow, outputZHigh);
+    AccelerationX = x;
+    AccelerationY = y;
+    AccelerationZ = z;
     // A completed conversion makes a new XYZ set available to firmware.
     dataReady.Value = true;
 }
@@ -1068,7 +1088,7 @@ Section 5 changes `dataReady.Value` in three places. Replace those assignments
 so every data-ready transition follows one path:
 
 ```csharp
-// In SetSample:
+// In FeedAccelerationSample:
 SetDataReady(true);
 
 // In HandleAcquisitionConfigurationChanged and AcknowledgeDataReady:
@@ -1167,24 +1187,25 @@ while (1)
 }
 ```
 
-Each new interrupt is acknowledged by reading XYZ and produces a line such as
-`DRDY XYZ: 1000,-500,16384`. Keeping the delay outside the ISR limits the UART
-rate without blocking interrupt handling.
+Each new interrupt is acknowledged by reading XYZ. The firmware converts the
+default 12-bit raw values using `0.976 mg/LSB` and produces a line such as
+`DRDY XYZ [g]: 0.097600,-0.195200,0.976000`. Keeping the delay outside the ISR
+limits the UART rate without blocking interrupt handling.
 
 ## 7. Optional interactive web view (vibe-coded)
 
 The supplied panel displays only implemented registers, with one cell per bit
 and the hexadecimal value beside it. Writable modeled fields can be toggled,
-raw samples can be injected, and the real USART2 and `INT1` states remain
+physical acceleration can be injected, and the real USART2 and `INT1` states remain
 visible.
 
 The draggable 3D package projects Earth's gravity onto X, Y, and Z for a
-stationary sensor, then calls the model's public `SetSample` API. This visual
+stationary sensor, then calls the model's public `FeedAccelerationSample` API. This visual
 tool follows the datasheet axis convention: X and Y lie in the package plane,
 while +Z is normal to its top face. Optional overlays show the three vector
 components and dashed projection guides.
 
-`SetSample`, `ReadRegister`, and `WriteRegister` are public integration points defined at the C# model
+`FeedAccelerationSample`, `ReadRegister`, and `WriteRegister` are public integration points defined at the C# model
 for automated tests and this [optional Web GUI](#7-optional-interactive-web-view-vibe-coded).
 Their comments in the C# model make it clear when an operation bypasses the I2C
 master.
@@ -1213,7 +1234,7 @@ Electrical characteristics, analog filtering, noise, power consumption, and
 exact physical performance are not simulated. FIFO, tap, free-fall, orientation,
 wake-up, self-test, and temperature features are outside the sensor model. The
 [optional GUI](#7-optional-interactive-web-view-vibe-coded) only calculates
-a gravity vector and injects it as a raw sample.
+a gravity vector and injects its components in `g`.
 SPI also remains outside the transport scope.
 
 The result is a teaching model for representative Renode patterns, not a complete
@@ -1236,17 +1257,15 @@ renode --console --disable-gui --plain tests/compare_models.resc
 ```
 
 `tests/firmware_reference.resc` also runs the supplied STM32L072 ELF against
-the official model. It confirms the shared I2C and identification path. Its XYZ
-validation intentionally differs because this tutorial injects raw register
-values, while the official model accepts physical acceleration and applies its
-configured conversion mode.
+the official model. Both models receive the same physical acceleration in the
+default 12-bit mode, so the firmware observes the same XYZ and `IF_ADD_INC`
+behavior.
 
 ```sh
 renode --console --plain tests/firmware_reference.resc
 ```
 
-**Expected:** `PASS reference firmware: I2C transactions complete; stimulus
-difference observed`.
+**Expected:** `PASS reference firmware: same XYZ and IF_ADD_INC behavior`.
 
 <!-- tutorial-file: platforms/stm32_lis2dw12_reference.repl -->
 ```repl

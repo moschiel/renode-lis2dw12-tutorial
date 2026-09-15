@@ -12,7 +12,7 @@ python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL1, 0x20]
 python "assert not dev.Interrupt1.IsSet, 'ODR alone asserted INT1'"
 
 # A completed sample sets DRDY and the enabled route forwards it to INT1.
-python "dev.SetSample(1000, -500, 16384)"
+python "dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'))"
 python "assert dev.Interrupt1.IsSet, 'new sample did not assert routed INT1'"
 
 # Reading an axis high byte acknowledges the sample and deasserts INT1.
@@ -21,7 +21,7 @@ python "dev.Read(1)"
 python "assert not dev.Interrupt1.IsSet, 'acknowledged sample left INT1 asserted'"
 
 # Routing gates a real pending event without creating or consuming it.
-python "dev.SetSample(-1, 2, -3)"
+python "dev.FeedAccelerationSample(acceleration_g('-0.000976'), acceleration_g('0.001952'), acceleration_g('-0.002928'))"
 python "assert dev.Interrupt1.IsSet, 'second sample did not reassert INT1'"
 python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL4_INT1_PAD_CTRL, 0x00]))"
 python "assert not dev.Interrupt1.IsSet, 'INT1 ignored disabled routing'"

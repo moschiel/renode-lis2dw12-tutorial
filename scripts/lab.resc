@@ -6,4 +6,4 @@ include @scripts/register_ids.py
 # Preload the deterministic sample used by the firmware's earlier XYZ checks.
 # Later GUI interactions represent new conversions while acquisition is active.
 python "dev = monitor.Machine['sysbus.i2c1.accel']"
-python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.SetSample(1000, -500, 16384)"
+python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'))"

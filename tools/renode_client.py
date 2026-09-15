@@ -91,9 +91,11 @@ class Renode:
 
     def set_sample(self, x, y, z):
         with self.lock:
+            values = [format(float(value), '.9g') for value in (x, y, z)]
             self.execute(
-                "python \"monitor.Machine['sysbus.i2c1.accel'].SetSample(%d, %d, %d)\""
-                % (int(x), int(y), int(z))
+                "python \"monitor.Machine['sysbus.i2c1.accel'].FeedAccelerationSample("
+                "acceleration_g('%s'), acceleration_g('%s'), acceleration_g('%s'))\""
+                % tuple(values)
             )
 
     def write_register(self, address, value):

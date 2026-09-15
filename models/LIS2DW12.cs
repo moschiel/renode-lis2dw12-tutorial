@@ -54,10 +54,13 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         public short SampleX => ReadAxis(outputXLow, outputXHigh);
         public short SampleY => ReadAxis(outputYLow, outputYHigh);
         public short SampleZ => ReadAxis(outputZLow, outputZHigh);
+        public decimal AccelerationX { get; private set; }
+        public decimal AccelerationY { get; private set; }
+        public decimal AccelerationZ { get; private set; }
 
         // Public stimulus API used by automated tests and the optional GUI.
-        // It represents a completed conversion without simulating motion or analog timing.
-        public void SetSample(int x, int y, int z)
+        // Acceleration is expressed in g, matching the official Renode model.
+        public void FeedAccelerationSample(decimal x, decimal y, decimal z)
         {
             // CTRL1.ODR=0 is power-down, so no conversion can update the output registers.
             if(!AcquisitionEnabled)
@@ -66,12 +69,15 @@ namespace Antmicro.Renode.Peripherals.Tutorial
                 return;
             }
 
-            SetAxis(x, outputXLow, outputXHigh, nameof(x));
-            SetAxis(y, outputYLow, outputYHigh, nameof(y));
-            SetAxis(z, outputZLow, outputZHigh, nameof(z));
+            SetAxis(x, outputXLow, outputXHigh);
+            SetAxis(y, outputYLow, outputYHigh);
+            SetAxis(z, outputZLow, outputZHigh);
+            AccelerationX = x;
+            AccelerationY = y;
+            AccelerationZ = z;
             // A completed conversion makes a new XYZ set available to firmware.
             SetDataReady(true);
-            this.Log(LogLevel.Debug, "Sample updated to X={0}, Y={1}, Z={2}.", x, y, z);
+            this.Log(LogLevel.Debug, "Acceleration sample updated to X={0}g, Y={1}g, Z={2}g.", x, y, z);
         }
 
         // Public inspection API for automated tests and the optional GUI.
@@ -92,6 +98,9 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         public void Reset()
         {
             RegistersCollection.Reset();
+            AccelerationX = 0m;
+            AccelerationY = 0m;
+            AccelerationZ = 0m;
             FinishTransmission();
             Interrupt1.Unset();
             this.Log(LogLevel.Debug, "Hardware reset restored register defaults.");
@@ -218,14 +227,13 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             return (byte)value;
         }
 
-        private static void SetAxis(int value, IValueRegisterField low, IValueRegisterField high, string parameterName)
+        private static void SetAxis(decimal acceleration, IValueRegisterField low, IValueRegisterField high)
         {
-            if(value < short.MinValue || value > short.MaxValue)
-            {
-                throw new ArgumentOutOfRangeException(parameterName, "Raw axis values must fit in a signed 16-bit register pair.");
-            }
-
-            var raw = unchecked((ushort)(short)value);
+            // DS11811 Rev. 9, Table 3: the reset configuration is +/-2 g,
+            // low-power mode 1 (12 bit), with 0.976 mg/LSB and left-aligned data.
+            var measurement = (int)(acceleration * 1000m / DefaultSensitivityMillig);
+            measurement = Math.Max(Minimum12BitValue, Math.Min(Maximum12BitValue, measurement));
+            var raw = unchecked((ushort)(short)(measurement << DefaultOutputShift));
             // These handles update the low and high bytes in the actual register fields.
             low.Value = (byte)raw;
             high.Value = (byte)(raw >> 8);
@@ -272,5 +280,10 @@ namespace Antmicro.Renode.Peripherals.Tutorial
         private byte selectedRegister;
         private IFlagRegisterField dataReady;
         private bool waitingForRegister;
+
+        private const decimal DefaultSensitivityMillig = 0.976m;
+        private const int DefaultOutputShift = 4;
+        private const int Minimum12BitValue = -0x800;
+        private const int Maximum12BitValue = 0x7FF;
     }
 }

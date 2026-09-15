@@ -8,9 +8,9 @@ include @scripts/register_ids.py
 # Preload XYZ for the earlier firmware checks, then let the STM32 reach the
 # polling loop before representing a newly completed conversion.
 python "dev = monitor.Machine['sysbus.i2c1.accel']"
-python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.SetSample(1000, -500, 16384)"
+python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'))"
 emulation RunFor "0.020"
-python "dev.SetSample(1000, -500, 16384)"
+python "dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'))"
 emulation RunFor "0.100"
 assert_data_ready_polling_uart
 finish_firmware_test

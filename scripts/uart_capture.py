@@ -31,7 +31,7 @@ def mc_finish_firmware_test():
 
 
 def mc_assert_xyz_uart():
-    assert_current_line('XYZ: 1000,-500,16384', 'XYZ sample')
+    assert_current_line('XYZ: 1600,-3200,16000', 'XYZ sample')
 
 
 def mc_assert_auto_increment_uart():
@@ -47,11 +47,9 @@ def mc_assert_data_ready_interrupt_uart():
 
 
 def mc_assert_reference_firmware_uart():
-    # This is the final comparison utility, so it intentionally checks the
-    # complete UART result against the official model.
     expected = [
-        'Hello from STM32', 'WHO_AM_I: 0x44', 'XYZ: ERROR', 'IF_ADD_INC: ERROR',
+        'Hello from STM32', 'WHO_AM_I: 0x44', 'XYZ: 1600,-3200,16000', 'IF_ADD_INC: PASS',
         'DRDY_POLL: PASS', 'DRDY_INT1: PASS',
     ]
     assert uart_lines[:len(expected)] == expected, 'UART mismatch: ' + str(uart_lines)
-    print('PASS reference firmware: I2C transactions complete; stimulus difference observed')
+    print('PASS reference firmware: same XYZ and IF_ADD_INC behavior')

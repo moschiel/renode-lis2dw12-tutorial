@@ -8,9 +8,9 @@ include @scripts/register_ids.py
 # The second sample is the event observed first by STATUS.DRDY and then by
 # the routed INT1 signal.
 python "dev = monitor.Machine['sysbus.i2c1.accel']"
-python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.SetSample(1000, -500, 16384)"
+python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'))"
 emulation RunFor "0.020"
-python "dev.SetSample(1000, -500, 16384)"
+python "dev.FeedAccelerationSample(acceleration_g('0.0976'), acceleration_g('-0.1952'), acceleration_g('0.976'))"
 emulation RunFor "0.100"
 assert_data_ready_interrupt_uart
 finish_firmware_test
