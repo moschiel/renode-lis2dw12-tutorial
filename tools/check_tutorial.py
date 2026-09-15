@@ -241,7 +241,7 @@ def write_model_for_stage(destination, stage):
 def write_platform_for_stage(destination, stage):
     source = (ROOT / "platforms" / "stm32_lis2dw12.repl").read_text(encoding="utf-8")
     if STAGE_ORDER[stage] < 6:
-        source = source.replace("    Interrupt1 -> gpioPortB@1\n", "")
+        source = source.replace("    Interrupt1 -> exti@1\n", "")
     target = destination / "platforms" / "stm32_lis2dw12.repl"
     target.write_text(source, encoding="utf-8")
 

@@ -1132,11 +1132,12 @@ CubeMX project configures STM32 GPIO `PB1` as a rising-edge EXTI input:
 using "platforms/cpus/stm32l072.repl"
 
 accel: Tutorial.LIS2DW12 @ i2c1 0x18
-    Interrupt1 -> gpioPortB@1
+    Interrupt1 -> exti@1
 ```
 
 This is the complete updated file. In REPL syntax, the indented line wires the
-`Interrupt1` GPIO from `accel` to pin 1 of the STM32 GPIO port B.
+`Interrupt1` GPIO from `accel` directly to STM32 external-interrupt line 1,
+which is the EXTI line selected for physical pin PB1 by the firmware. We could have used `gpioPortB@1` for EXT1 as configured on CubeMX, but only `exti@1` is portable across the Windows and Linux Renode 1.16.1 packages.
 
 ### 6.4 Validate the interrupt path
 
@@ -1279,5 +1280,5 @@ cpu:
     PerformanceInMips: 32
 
 accel: Sensors.LIS2DW12 @ i2c1 0x18
-    Interrupt1 -> gpioPortB@1
+    Interrupt1 -> exti@1
 ```
