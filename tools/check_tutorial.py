@@ -335,8 +335,9 @@ def check_gui(renode):
         "STM32L072", "WHO_AM_I", "CTRL1", "CTRL2", "IF_ADD_INC",
         "CTRL4_INT1_PAD_CTRL", "INT1_DRDY", "STATUS", "DRDY",
         "OUT_X_L", "OUT_X_H", "OUT_Y_L", "OUT_Y_H", "OUT_Z_L", "OUT_Z_H",
-        "show-axes", "show-components", "Dashed projection guides",
-        "sensor-color", "sensor-opacity",
+        "show-axes", "show-components", "Dashed projection",
+        "sensor-color", "sensor-opacity", "Roll:", "Pitch:",
+        "X raw", "Y raw", "Z raw",
     ))
     assert "SOFT_RESET" not in page and "BOOT" not in page
     print("PASS GUI support: interactive registers, gravity sample, INT1, and UART", flush=True)
