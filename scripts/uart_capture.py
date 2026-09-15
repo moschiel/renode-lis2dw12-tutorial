@@ -53,5 +53,5 @@ def mc_assert_reference_firmware_uart():
         'Hello from STM32', 'WHO_AM_I: 0x44', 'XYZ: ERROR', 'IF_ADD_INC: ERROR',
         'DRDY_POLL: PASS', 'DRDY_INT1: PASS',
     ]
-    assert uart_lines == expected, 'UART mismatch: ' + str(uart_lines)
+    assert uart_lines[:len(expected)] == expected, 'UART mismatch: ' + str(uart_lines)
     print('PASS reference firmware: I2C transactions complete; stimulus difference observed')

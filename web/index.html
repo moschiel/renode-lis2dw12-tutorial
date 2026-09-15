@@ -4,15 +4,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LIS2DW12 / Renode</title>
 <style>
-:root{--paper:#f1eee4;--ink:#17221c;--muted:#657068;--line:#9da89e;--accent:#c9482d;--green:#315f49;--panel:#fffdf7;--high:#dcebdd}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:30px;background:radial-gradient(circle at 12% 8%,#dbe8d8 0,transparent 35%),linear-gradient(135deg,#e8e5da,var(--paper));color:var(--ink);font-family:Georgia,serif}
-main{max-width:1120px;margin:auto}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:12px}h1{margin:0;font-size:clamp(28px,5vw,44px);font-weight:normal}.status,.mono{font:12px Consolas,monospace}.status{color:var(--green)}.path{margin:14px 0 22px;color:var(--muted);font:13px Consolas,monospace}
-.workbench{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:stretch}.panel{background:var(--panel);border:1px solid var(--line);box-shadow:5px 5px 0 #c7cec5;padding:18px}.panel h2,.register-heading h2{margin:0;font-size:18px;font-weight:normal}.hint{margin:5px 0 0;color:var(--muted);font:11px Consolas,monospace}.sensor-panel,.register-panel{height:720px}.register-panel{display:flex;min-width:0;flex-direction:column}.register-heading{flex:0 0 auto;margin:0 0 10px}
-.scene{position:relative;height:400px;display:grid;place-items:center;cursor:grab;touch-action:none;user-select:none}.scene:active{cursor:grabbing}.cube{position:relative;z-index:1;width:160px;height:100px;transform-style:preserve-3d;transition:transform .08s linear}.face{position:absolute;display:grid;place-items:center;border:2px solid var(--ink);background:rgba(49,95,73,.78);color:#fff;font:700 15px Consolas,monospace;backface-visibility:visible}.front,.back{width:160px;height:100px}.front{transform:translateZ(30px)}.back{transform:rotateY(180deg) translateZ(30px)}.left,.right{left:50px;width:60px;height:100px}.left{transform:rotateY(-90deg) translateZ(80px)}.right{transform:rotateY(90deg) translateZ(80px)}.top,.bottom{top:20px;width:160px;height:60px}.top{transform:rotateX(90deg) translateZ(50px)}.bottom{transform:rotateX(-90deg) translateZ(50px)}.vectors{position:absolute;z-index:2;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}.axis,.component,.resultant,.guide{vector-effect:non-scaling-stroke}.axis{stroke-width:1.5;opacity:.8}.component{stroke-width:3}.resultant{stroke:var(--ink);stroke-width:3}.guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:4 4;opacity:.55}.vector-label{font:700 11px Consolas,monospace}.result-label{fill:var(--ink);font:700 10px Consolas,monospace}.x-color{stroke:#c83c2d;fill:#c83c2d}.y-color{stroke:#2272a2;fill:#2272a2}.z-color{stroke:#c18513;fill:#c18513}
-.orientation-readout{display:flex;justify-content:center;gap:18px;color:var(--muted);font:11px Consolas,monospace}.vector-controls{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font:11px Consolas,monospace;color:var(--muted)}.vector-controls label{display:flex;align-items:center;gap:5px}.vector-controls input{width:auto;margin:0;padding:0}.vector-values{display:flex;gap:13px;margin-top:8px;font:11px Consolas,monospace}.vector-values .x{color:#a62f23}.vector-values .y{color:#195d87}.vector-values .z{color:#8d620d}.sample-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:13px}.sample-grid label{font:11px Consolas,monospace;color:var(--muted)}input{width:100%;margin-top:4px;padding:7px;border:1px solid var(--line);background:#fff;font:13px Consolas,monospace;color:var(--ink)}button{border:1px solid var(--ink);background:var(--ink);color:white;padding:8px 11px;font:12px Consolas,monospace;cursor:pointer}button.secondary{background:transparent;color:var(--ink)}.actions{display:flex;gap:8px;margin-top:10px}.irq{margin-top:16px;padding:10px;border:1px solid var(--line);font:12px Consolas,monospace}.irq.high{background:var(--high);border-color:var(--green);color:var(--green)}
-.terminal{margin-top:18px;background:#152019;color:#d7e5d7;border-left:5px solid var(--accent);padding:14px}.terminal label{font:11px Consolas,monospace;color:#91a595}.terminal pre{min-height:140px;white-space:pre-wrap;margin:10px 0 0;font:14px/1.55 Consolas,monospace}
-.register-heading{display:flex;justify-content:space-between;align-items:end}.registers{display:grid;flex:1;min-height:0;gap:10px;overflow-y:auto;padding-right:6px}.reg{display:grid;grid-template-columns:150px minmax(450px,1fr) 74px;align-items:center;gap:10px;padding:12px;background:var(--panel);border:1px solid var(--line)}.reg-title span{display:block;color:var(--muted);font:11px Consolas,monospace}.reg-title strong{font:14px Consolas,monospace}.bits{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}.bit{min-width:50px;padding:6px 2px;border:1px solid var(--line);background:#ebe9df;text-align:center;font:10px Consolas,monospace}.bit b{display:block;margin:5px 0;font-size:17px}.bit small{display:block;color:var(--muted);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bit.active{background:var(--high)}.bit.writable{cursor:pointer;border-color:var(--green)}.bit.writable:hover{outline:2px solid var(--green)}.hex{text-align:right;font:700 19px Consolas,monospace;color:var(--accent)}
-@media(max-width:850px){body{padding:18px}.workbench{grid-template-columns:1fr}.sensor-panel,.register-panel{height:auto}.register-panel{max-height:720px}.reg{display:block;overflow-x:auto}.reg-title{display:flex;justify-content:space-between;margin-bottom:8px}.bits{min-width:450px}.hex{text-align:left;margin-top:8px}.terminal pre{min-height:140px}}
+:root{--paper:#f1eee4;--ink:#17221c;--muted:#657068;--line:#9da89e;--accent:#c9482d;--green:#315f49;--panel:#fffdf7;--high:#dcebdd;--sensor-rgb:255,255,0;--sensor-alpha:.4;--sensor-label:#17221c;--sensor-shadow:0 1px 1px #fff}
+*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;padding:20px;background:radial-gradient(circle at 12% 8%,#dbe8d8 0,transparent 35%),linear-gradient(135deg,#e8e5da,var(--paper));color:var(--ink);font-family:Georgia,serif}
+main{max-width:1240px;margin:auto}header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:8px}h1{margin:0;font-size:clamp(28px,5vw,40px);font-weight:normal}.status,.mono{font:12px Consolas,monospace}.status{color:var(--green)}.path{margin:9px 0 14px;color:var(--muted);font:13px Consolas,monospace}
+.workbench{display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px;height:calc(100vh - 116px);min-height:620px;align-items:stretch}.panel{background:var(--panel);border:1px solid var(--line);box-shadow:5px 5px 0 #c7cec5;padding:18px}.panel h2,.register-heading h2{margin:0;font-size:18px;font-weight:normal}.hint{margin:5px 0 0;color:var(--muted);font:11px Consolas,monospace}.sensor-panel{height:100%}.right-stack{display:grid;grid-template-rows:minmax(0,1fr) 178px;gap:18px;min-width:0;min-height:0}.register-panel{display:flex;min-width:0;min-height:0;flex-direction:column}.register-heading{flex:0 0 auto;margin:0 0 10px}
+.scene{position:relative;height:min(380px,42vh);min-height:300px;display:grid;place-items:center;cursor:grab;touch-action:none;user-select:none}.scene:active{cursor:grabbing}.cube{position:relative;z-index:1;width:160px;height:100px;transform-style:preserve-3d;transition:transform .08s linear}.face{position:absolute;display:grid;place-items:center;border:2px solid var(--ink);background:rgba(var(--sensor-rgb),var(--sensor-alpha));color:var(--sensor-label);text-shadow:var(--sensor-shadow);font:700 15px Consolas,monospace;backface-visibility:visible}.front,.back{width:160px;height:100px}.front{transform:translateZ(30px)}.back{transform:rotateY(180deg) translateZ(30px)}.left,.right{left:50px;width:60px;height:100px}.left{transform:rotateY(-90deg) translateZ(80px)}.right{transform:rotateY(90deg) translateZ(80px)}.top,.bottom{top:20px;width:160px;height:60px}.top{transform:rotateX(90deg) translateZ(50px)}.bottom{transform:rotateX(-90deg) translateZ(50px)}.vectors{position:absolute;z-index:2;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}.axis,.component,.resultant,.guide{vector-effect:non-scaling-stroke}.axis{stroke-width:1.5;opacity:.8}.component{stroke-width:3}.resultant{stroke:var(--ink);stroke-width:3}.guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:4 4;opacity:.55}.vector-label{font:700 11px Consolas,monospace}.result-label{fill:var(--ink);font:700 10px Consolas,monospace}.x-color{stroke:#c83c2d;fill:#c83c2d}.y-color{stroke:#2272a2;fill:#2272a2}.z-color{stroke:#c18513;fill:#c18513}
+.orientation-readout{display:flex;justify-content:center;gap:18px;color:var(--muted);font:11px Consolas,monospace}.vector-controls,.appearance-controls{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font:11px Consolas,monospace;color:var(--muted)}.vector-controls label,.appearance-controls label{display:flex;align-items:center;gap:5px}.vector-controls label.disabled{opacity:.45}.vector-controls input,.appearance-controls input{width:auto;margin:0;padding:0}.appearance-controls input[type=color]{width:28px;height:20px;border:1px solid var(--line);background:none}.appearance-controls input[type=range]{width:92px}.appearance-controls output{min-width:28px}.vector-values{display:flex;gap:13px;margin-top:8px;font:11px Consolas,monospace}.vector-values .x{color:#a62f23}.vector-values .y{color:#195d87}.vector-values .z{color:#8d620d}.sample-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:13px}.sample-grid label{font:11px Consolas,monospace;color:var(--muted)}input{width:100%;margin-top:4px;padding:7px;border:1px solid var(--line);background:#fff;font:13px Consolas,monospace;color:var(--ink)}button{border:1px solid var(--ink);background:var(--ink);color:white;padding:8px 11px;font:12px Consolas,monospace;cursor:pointer}button.secondary{background:transparent;color:var(--ink)}.actions{display:flex;gap:8px;margin-top:10px}.view-picker{position:relative}.view-menu{position:absolute;z-index:10;right:0;bottom:calc(100% + 7px);display:grid;grid-template-columns:repeat(2,minmax(74px,1fr));gap:5px;width:178px;padding:7px;background:var(--panel);border:1px solid var(--ink);box-shadow:4px 4px 0 #aeb8af}.view-menu[hidden]{display:none}.view-menu button{background:#eef1ed;color:var(--ink);padding:7px 5px}.view-menu button:hover,.view-menu button:focus-visible{background:var(--high);outline:2px solid var(--green);outline-offset:-2px}.irq{margin-top:14px;padding:9px;border:1px solid var(--line);font:12px Consolas,monospace}.irq.high{background:var(--high);border-color:var(--green);color:var(--green)}
+.terminal{min-height:0;overflow:hidden;background:#152019;color:#d7e5d7;border-left:5px solid var(--accent);padding:13px 14px}.terminal label{font:11px Consolas,monospace;color:#91a595}.terminal pre{height:125px;overflow:auto;white-space:pre-wrap;margin:8px 0 0;font:13px/1.45 Consolas,monospace}
+.register-heading{display:flex;justify-content:space-between;align-items:end}.registers{display:grid;flex:1;min-height:0;gap:10px;overflow-y:auto;padding:0 7px 4px 0}.reg{display:grid;grid-template-columns:150px minmax(450px,1fr) 74px;align-items:center;gap:10px;padding:12px;background:var(--panel);border:1px solid var(--line)}.reg-title span{display:block;color:var(--muted);font:11px Consolas,monospace}.reg-title strong{font:14px Consolas,monospace}.bits{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}.bit{min-width:50px;padding:6px 2px;border:1px solid var(--line);background:#ebe9df;text-align:center;font:10px Consolas,monospace}.bit b{display:block;margin:5px 0;font-size:17px}.bit small{display:block;color:var(--muted);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bit.active{background:var(--high)}.bit.writable{cursor:pointer;border:2px solid var(--green);background:#f7f5ed;box-shadow:2px 2px 0 var(--green);padding:5px 1px}.bit.writable.active{background:#bcd9c1}.bit.writable:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--green)}.bit.writable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.hex{text-align:right;font:700 19px Consolas,monospace;color:var(--accent)}
+@media(max-width:850px){body{height:auto;min-height:100vh;overflow:auto;padding:18px}.workbench{grid-template-columns:1fr;height:auto}.sensor-panel{height:auto}.right-stack{height:720px}.reg{display:block;overflow-x:auto}.reg-title{display:flex;justify-content:space-between;margin-bottom:8px}.bits{min-width:450px}.hex{text-align:left;margin-top:8px}}
+@media(max-height:735px) and (min-width:851px){body{height:auto;min-height:100vh;overflow:auto}.workbench{height:620px}}
 </style>
 <main>
 <header><h1>LIS2DW12</h1><span class="status" id="status">CONNECTING</span></header>
@@ -20,7 +21,7 @@ main{max-width:1120px;margin:auto}header{display:flex;justify-content:space-betw
 <section class="workbench">
   <article class="panel sensor-panel">
     <h2>Stationary sensor</h2>
-    <p class="hint">Eye-level view: at rest, the top and bottom faces are edge-on. Drag the package to project gravity onto X, Y and Z.</p>
+    <p class="hint">The virtual camera remains at the sensor's height. Drag the package to project gravity onto X, Y and Z.</p>
     <div class="scene" id="scene" aria-label="Draggable accelerometer orientation">
       <div class="cube" id="cube">
         <div class="face front">+Z</div><div class="face back">-Z</div>
@@ -34,10 +35,12 @@ main{max-width:1120px;margin:auto}header{display:flex;justify-content:space-betw
           <marker id="arrow-z" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" class="z-color"/></marker>
           <marker id="arrow-result" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#17221c"/></marker>
         </defs>
-        <g id="axis-vectors">
+        <g id="axes">
           <line id="axis-x" class="axis x-color" marker-end="url(#arrow-x)"/><text id="label-x" class="vector-label x-color">+X</text>
           <line id="axis-y" class="axis y-color" marker-end="url(#arrow-y)"/><text id="label-y" class="vector-label y-color">+Y</text>
           <line id="axis-z" class="axis z-color" marker-end="url(#arrow-z)"/><text id="label-z" class="vector-label z-color">+Z</text>
+        </g>
+        <g id="components">
           <line id="component-x" class="component x-color" marker-end="url(#arrow-x)"/>
           <line id="component-y" class="component y-color" marker-end="url(#arrow-y)"/>
           <line id="component-z" class="component z-color" marker-end="url(#arrow-z)"/>
@@ -50,8 +53,13 @@ main{max-width:1120px;margin:auto}header{display:flex;justify-content:space-betw
     </div>
     <div class="orientation-readout"><span id="tilt">tilt 0&deg;</span><span>drag: virtual trackball</span></div>
     <div class="vector-controls">
-      <label><input id="show-vectors" type="checkbox" checked>Axes and components</label>
+      <label><input id="show-axes" type="checkbox" checked>Axes</label>
+      <label><input id="show-components" type="checkbox" checked>Components</label>
       <label><input id="show-guides" type="checkbox">Dashed projection guides</label>
+    </div>
+    <div class="appearance-controls">
+      <label>Package color <input id="sensor-color" type="color" value="#ffff00"></label>
+      <label>Opacity <input id="sensor-opacity" type="range" min="20" max="100" value="20"><output id="sensor-opacity-value">20%</output></label>
     </div>
     <div class="vector-values"><span class="x" id="gx">X 0.00 g</span><span class="y" id="gy">Y 0.00 g</span><span class="z" id="gz">Z +1.00 g</span></div>
     <div class="sample-grid">
@@ -59,15 +67,27 @@ main{max-width:1120px;margin:auto}header{display:flex;justify-content:space-betw
       <label>Y raw<input id="sample-y" type="number" min="-32768" max="32767"></label>
       <label>Z raw<input id="sample-z" type="number" min="-32768" max="32767"></label>
     </div>
-    <div class="actions"><button id="apply-sample">Apply sample</button><button class="secondary" id="reset-view">Reset view</button></div>
-    <div class="irq" id="irq">INT1 LOW</div>
+    <div class="actions">
+      <button id="apply-sample">Apply sample</button>
+      <div class="view-picker">
+        <button class="secondary" id="reset-view" aria-expanded="false" aria-controls="view-menu">Reset view</button>
+        <div class="view-menu" id="view-menu" hidden>
+          <button data-view="+x">+X face</button><button data-view="-x">-X face</button>
+          <button data-view="+y">+Y face</button><button data-view="-y">-Y face</button>
+          <button data-view="+z">+Z face</button><button data-view="-z">-Z face</button>
+        </div>
+      </div>
+    </div>
+    <div class="irq" id="irq">INT1 PIN  LOW</div>
   </article>
-  <section class="panel register-panel">
-    <div class="register-heading"><h2>Implemented registers</h2><span class="hint">Click outlined writable bits to toggle them</span></div>
-    <section class="registers" id="registers"></section>
-  </section>
+  <div class="right-stack">
+    <section class="panel register-panel">
+      <div class="register-heading"><h2>Implemented registers</h2><span class="hint">Raised bits are clickable</span></div>
+      <section class="registers" id="registers"></section>
+    </section>
+    <section class="terminal"><label>STM32 USART2</label><pre id="uart">Waiting for firmware...</pre></section>
+  </div>
 </section>
-<section class="terminal"><label>USART2</label><pre id="uart">Waiting for firmware...</pre></section>
 </main>
 <script>
 const registerInfo={
@@ -91,7 +111,8 @@ function renderRegisters(){
     const meta=registerInfo[name];
     const bits=meta.bits.map((label,index)=>{
       const bit=7-index,enabled=(value>>bit)&1,writable=(meta.writable||[]).includes(bit);
-      return `<div class="bit ${enabled?'active':''} ${writable?'writable':''}" data-address="${meta.address}" data-bit="${bit}"><small>${label||'--'}</small><b>${enabled}</b><small>bit ${bit}</small></div>`;
+      const action=writable?` role="button" tabindex="0" aria-label="Toggle ${name} bit ${bit}"`:'';
+      return `<div class="bit ${enabled?'active':''} ${writable?'writable':''}" data-address="${meta.address}" data-bit="${bit}"${action}><small>${label||'--'}</small><b>${enabled}</b><small>${writable?'click':'bit '+bit}</small></div>`;
     }).join('');
     return `<article class="reg"><div class="reg-title"><strong>${name}</strong><span>${hex(meta.address)}</span></div><div class="bits">${bits}</div><div class="hex">${hex(value)}</div></article>`;
   }).join('');
@@ -102,11 +123,17 @@ async function post(path,payload){
   if(!response.ok)throw Error(result.error||'request failed');
   return result;
 }
-document.querySelector('#registers').addEventListener('click',async event=>{
-  const cell=event.target.closest('.writable'); if(!cell)return;
+async function toggleRegisterBit(cell){
   const address=Number(cell.dataset.address),bit=Number(cell.dataset.bit);
   const name=Object.keys(registerInfo).find(key=>registerInfo[key].address===address);
   try{await post('/api/register',{address,value:state.registers[name]^(1<<bit)});await update();}catch(error){showError(error);}
+}
+document.querySelector('#registers').addEventListener('click',event=>{
+  const cell=event.target.closest('.writable');if(cell)toggleRegisterBit(cell);
+});
+document.querySelector('#registers').addEventListener('keydown',event=>{
+  const cell=event.target.closest('.writable');if(!cell||!['Enter',' '].includes(event.key))return;
+  event.preventDefault();toggleRegisterBit(cell);
 });
 function readInputs(){return ['x','y','z'].map(axis=>Math.max(-32768,Math.min(32767,Number(document.querySelector('#sample-'+axis).value)||0)));}
 async function applySample(){const [x,y,z]=readInputs();try{await post('/api/sample',{x,y,z});await update();}catch(error){showError(error);}}
@@ -125,6 +152,8 @@ function sensorAxes(){
   ];
 }
 const viewRight=normalize([-1,1,0]),viewUp=[0,0,1],viewToward=normalize([1,1,0]);
+const faceNormals={'+x':[1,0,0],'-x':[-1,0,0],'+y':[0,1,0],'-y':[0,-1,0],'+z':[0,0,1],'-z':[0,0,-1]};
+const initialView=normalize(viewToward.map((value,index)=>value+.35*viewRight[index]+.25*viewUp[index]));
 function project(vector,scale=vectorScale){return [scale*dot(vector,viewRight),-scale*dot(vector,viewUp)];}
 function endpoint(vector,scale=vectorScale){const point=project(vector,scale);return [vectorOrigin[0]+point[0],vectorOrigin[1]+point[1]];}
 function setLine(id,start,end){const line=document.querySelector('#'+id);line.setAttribute('x1',start[0]);line.setAttribute('y1',start[1]);line.setAttribute('x2',end[0]);line.setAttribute('y2',end[1]);}
@@ -140,8 +169,12 @@ function drawVectors(){
   });
   setLine('resultant',vectorOrigin,result);const resultLabel=document.querySelector('#result-label');resultLabel.setAttribute('x',result[0]+6);resultLabel.setAttribute('y',result[1]+3);
   names.forEach((name,index)=>setLine('guide-'+name,componentEnds[index],result));
-  const visible=document.querySelector('#show-vectors').checked;document.querySelector('#axis-vectors').style.display=visible?'':'none';
-  document.querySelector('#projection-guides').style.display=visible&&document.querySelector('#show-guides').checked?'':'none';
+  const showAxes=document.querySelector('#show-axes').checked,showComponents=document.querySelector('#show-components').checked;
+  document.querySelector('#axes').style.display=showAxes?'':'none';
+  document.querySelector('#components').style.display=showComponents?'':'none';
+  const guides=document.querySelector('#show-guides');
+  guides.disabled=!showComponents;guides.closest('label').classList.toggle('disabled',!showComponents);
+  document.querySelector('#projection-guides').style.display=showComponents&&guides.checked?'':'none';
 }
 function dot(left,right){return left[0]*right[0]+left[1]*right[1]+left[2]*right[2];}
 function cssRotationMatrix(){
@@ -186,18 +219,43 @@ const scene=document.querySelector('#scene');let previousTrackballPoint;
 scene.addEventListener('pointerdown',event=>{state.dragging=true;previousTrackballPoint=trackballPointInWorld(event);scene.setPointerCapture(event.pointerId);});
 scene.addEventListener('pointermove',event=>{if(!state.dragging)return;const currentPoint=trackballPointInWorld(event);state.orientation=multiplyQuaternion(quaternionBetween(previousTrackballPoint,currentPoint),state.orientation);previousTrackballPoint=currentPoint;updateCube();projectGravity();});
 scene.addEventListener('pointerup',()=>{state.dragging=false;previousTrackballPoint=null;});scene.addEventListener('pointercancel',()=>{state.dragging=false;previousTrackballPoint=null;});
-document.querySelector('#reset-view').addEventListener('click',()=>{state.orientation=[1,0,0,0];updateCube();projectGravity();});
-document.querySelector('#show-vectors').addEventListener('change',drawVectors);document.querySelector('#show-guides').addEventListener('change',drawVectors);
+const viewButton=document.querySelector('#reset-view'),viewMenu=document.querySelector('#view-menu');
+function closeViewMenu(){viewMenu.hidden=true;viewButton.setAttribute('aria-expanded','false');}
+viewButton.addEventListener('click',event=>{event.stopPropagation();viewMenu.hidden=!viewMenu.hidden;viewButton.setAttribute('aria-expanded',String(!viewMenu.hidden));});
+viewMenu.addEventListener('click',event=>{
+  const option=event.target.closest('[data-view]');if(!option)return;
+  const selected=option.dataset.view;
+  state.orientation=quaternionBetween(faceNormals[selected],viewToward);
+  closeViewMenu();updateCube();projectGravity();
+});
+document.addEventListener('click',event=>{if(!event.target.closest('.view-picker'))closeViewMenu();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')closeViewMenu();});
+document.querySelector('#show-axes').addEventListener('change',drawVectors);document.querySelector('#show-components').addEventListener('change',drawVectors);document.querySelector('#show-guides').addEventListener('change',drawVectors);
+function updatePackageAppearance(){
+  const hexColor=document.querySelector('#sensor-color').value;
+  const rgb=[1,3,5].map(index=>parseInt(hexColor.slice(index,index+2),16));
+  const opacity=Number(document.querySelector('#sensor-opacity').value)/100;
+  const effective=rgb.map((value,index)=>value*opacity+[255,253,247][index]*(1-opacity));
+  const luminance=(.2126*effective[0]+.7152*effective[1]+.0722*effective[2])/255;
+  const root=document.documentElement.style;
+  root.setProperty('--sensor-rgb',rgb.join(','));root.setProperty('--sensor-alpha',opacity);
+  root.setProperty('--sensor-label',luminance>.58?'#17221c':'#fff');
+  root.setProperty('--sensor-shadow',luminance>.58?'0 1px 1px #fff':'0 1px 2px #17221c');
+  document.querySelector('#sensor-opacity-value').textContent=Math.round(opacity*100)+'%';
+}
+document.querySelector('#sensor-color').addEventListener('input',updatePackageAppearance);document.querySelector('#sensor-opacity').addEventListener('input',updatePackageAppearance);
 function showError(error){document.querySelector('#status').textContent='ERROR: '+error.message;}
 async function update(){
   try{
     const response=await fetch('/api/state',{cache:'no-store'}),snapshot=await response.json();if(!response.ok||snapshot.error)throw Error(snapshot.error||'request failed');
     state.registers=snapshot.registers;document.querySelector('#status').textContent=snapshot.seconds.toFixed(2)+' s';renderRegisters();
-    document.querySelector('#uart').textContent=snapshot.uart.join('\n')||'Waiting for firmware...';
-    const irq=document.querySelector('#irq');irq.textContent='INT1 '+(snapshot.interrupt1?'HIGH':'LOW');irq.classList.toggle('high',snapshot.interrupt1);
+    const uart=document.querySelector('#uart');
+    uart.textContent=snapshot.uart.join('\n')||'Waiting for firmware...';
+    uart.scrollTop=uart.scrollHeight;
+    const irq=document.querySelector('#irq');irq.textContent='INT1 PIN '+(snapshot.interrupt1?'HIGH':'LOW');irq.classList.toggle('high',snapshot.interrupt1);
     if(!state.dragging&&document.activeElement.tagName!=='INPUT'){['x','y','z'].forEach(axis=>document.querySelector('#sample-'+axis).value=snapshot.sample[axis]);}
   }catch(error){document.querySelector('#status').textContent='DISCONNECTED';}
 }
-setInterval(update,250);updateCube();update();
+setInterval(update,250);state.orientation=quaternionBetween(faceNormals['+x'],initialView);updateCube();projectGravity();update();
 </script>
 </html>

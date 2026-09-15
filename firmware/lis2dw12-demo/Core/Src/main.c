@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -251,6 +252,31 @@ static void ValidateDataReadyInterrupt(void)
   HAL_UART_Transmit(&huart2, (uint8_t *)message, messageSize, 100);
 }
 
+static void ReportDataReadySample(void)
+{
+  int16_t axes[3] = {0};
+  char message[48];
+
+  if (!dataReadyInterruptSeen)
+  {
+    return;
+  }
+
+  // Keep I2C and UART work outside the ISR; the callback only records the edge.
+  dataReadyInterruptSeen = 0;
+  if (ReadXyzBurst(axes) != HAL_OK)
+  {
+    return;
+  }
+
+  int length = snprintf(message, sizeof(message), "DRDY XYZ: %d,%d,%d\r\n",
+                        axes[0], axes[1], axes[2]);
+  if (length > 0)
+  {
+    HAL_UART_Transmit(&huart2, (uint8_t *)message, (uint16_t)length, 100);
+  }
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == PB1_RESERVED_Pin)
@@ -315,6 +341,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    // Interrupts flag new data; this delay caps reads and UART output at 10 Hz.
+    HAL_Delay(100);
+    ReportDataReadySample();
   }
   /* USER CODE END 3 */
 }

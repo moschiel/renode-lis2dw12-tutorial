@@ -1147,6 +1147,22 @@ The UART analyzer shows the firmware output. The Monitor prints:
 PASS firmware: data-ready interrupt
 ```
 
+After these startup checks, the supplied firmware keeps using the same
+interrupt path. The callback only records the edge; the main loop performs the
+I2C read and UART output, limited to one check every 100 ms:
+
+```c
+while (1)
+{
+  HAL_Delay(100);
+  ReportDataReadySample();
+}
+```
+
+Each new interrupt is acknowledged by reading XYZ and produces a line such as
+`DRDY XYZ: 1000,-500,16384`. Keeping the delay outside the ISR limits the UART
+rate without blocking interrupt handling.
+
 ## 7. Optional interactive web view (vibe-coded)
 
 The supplied panel displays only implemented registers, with one cell per bit
@@ -1158,8 +1174,7 @@ The draggable 3D package projects Earth's gravity onto X, Y, and Z for a
 stationary sensor, then calls the model's public `SetSample` API. This visual
 tool follows the datasheet axis convention: X and Y lie in the package plane,
 while +Z is normal to its top face. Optional overlays show the three vector
-components and dashed projection guides. It is deliberately independent from
-the model and is not a physics lesson:
+components and dashed projection guides.
 
 `SetSample`, `ReadRegister`, and `WriteRegister` are public integration points
 for automated tests and this [optional GUI](#7-optional-interactive-web-view-vibe-coded).
