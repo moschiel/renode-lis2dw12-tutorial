@@ -24,6 +24,7 @@ def mc_lab_state():
     y = int(accel.SampleY) & 0xFFFF
     z = int(accel.SampleZ) & 0xFFFF
     print(json.dumps({
+        'seconds': float(monitor.Machine.ElapsedVirtualTime.TimeElapsed.TotalSeconds),
         'registers': {
             'WHO_AM_I': int(accel.ReadRegister(0x0F)),
             'CTRL1': int(accel.ReadRegister(0x20)),

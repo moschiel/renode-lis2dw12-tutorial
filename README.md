@@ -506,6 +506,9 @@ Create `platforms/stm32_lis2dw12.repl`:
 ```text
 using "platforms/cpus/stm32l072.repl"
 
+cpu:
+    PerformanceInMips: 32
+
 accel: Tutorial.LIS2DW12 @ i2c1 0x18
 ```
 
@@ -513,6 +516,11 @@ The platform reuses Renode's STM32L072 CPU description and attaches the model
 to the CPU's `i2c1` peripheral. This is the platform used by Renode's official
 LIS2DW12 test. `0x18` is the LIS2DW12 7-bit address when SA0 is low; it is
 different from the internal register address `0x0F`.
+
+The firmware configures its system clock to 32 MHz. `PerformanceInMips: 32`
+provides a matching timing approximation for this tutorial instead of the CPU
+model's generic 100 MIPS default. This also lets the the [optional Web GUI](#7-optional-interactive-web-view-vibe-coded) stay near
+real time when the host can emulate the workload fast enough.
 
 Create `scripts/stm32_lis2dw12.resc`:
 
@@ -1187,6 +1195,11 @@ python tools/lab.py
 
 It opens [localhost:8000](http://127.0.0.1:8000). Stop it with `Ctrl+C`.
 
+The lab leaves Renode running continuously. The value in the upper-right corner
+is the machine's actual elapsed virtual time; Renode prevents it from running
+ahead of host time by default, although a demanding emulation can still run
+slower than real time. See Renode's [time framework](https://renode.readthedocs.io/en/latest/advanced/time_framework.html).
+
 ## 8. Limits and References
 
 
@@ -1238,6 +1251,9 @@ difference observed`.
 <!-- tutorial-file: platforms/stm32_lis2dw12_reference.repl -->
 ```repl
 using "platforms/cpus/stm32l072.repl"
+
+cpu:
+    PerformanceInMips: 32
 
 accel: Sensors.LIS2DW12 @ i2c1 0x18
     Interrupt1 -> gpioPortB@1

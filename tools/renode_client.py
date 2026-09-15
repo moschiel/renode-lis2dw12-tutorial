@@ -36,7 +36,6 @@ class TimeoutTransport(xmlrpc.client.Transport):
 class Renode:
     def __init__(self, executable=None):
         self.lock = threading.RLock()
-        self.seconds = 0.0
         self.process = None
         self.temp = tempfile.TemporaryDirectory(prefix='lis2dw12-lab-')
         self.log = open(Path(self.temp.name) / 'renode.log', 'w+', encoding='utf-8')
@@ -81,13 +80,14 @@ class Renode:
     def advance(self, seconds):
         with self.lock:
             self.execute('emulation RunFor "%.6f"' % seconds)
-            self.seconds += seconds
+
+    def start(self):
+        with self.lock:
+            self.execute('start')
 
     def state(self):
         with self.lock:
-            state = json.loads(self.execute('lab_state').strip())
-            state['seconds'] = round(self.seconds, 3)
-            return state
+            return json.loads(self.execute('lab_state').strip())
 
     def set_sample(self, x, y, z):
         with self.lock:

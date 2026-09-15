@@ -1,4 +1,7 @@
 using "platforms/cpus/stm32l072.repl"
 
+cpu:
+    PerformanceInMips: 32
+
 accel: Sensors.LIS2DW12 @ i2c1 0x18
     Interrupt1 -> gpioPortB@1

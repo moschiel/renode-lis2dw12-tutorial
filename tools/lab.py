@@ -21,12 +21,12 @@ class Lab:
         renode.set_sample(1000, -500, 16384)
         renode.advance(.05)
         self.snapshot = renode.state()
+        renode.start()
 
     def work(self):
         while not self.stop.wait(.05):
             try:
                 with self.lock:
-                    self.renode.advance(.05)
                     self.snapshot = self.renode.state()
             except Exception as exc:
                 with self.lock:
