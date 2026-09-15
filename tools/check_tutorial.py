@@ -53,7 +53,8 @@ def materialize(destination):
         reference = (ROOT / relative).read_text(encoding="utf-8")
         if relative == "models/LIS2DW12.cs":
             source = reference
-        if reference != source:
+        if (relative != "platforms/stm32_lis2dw12.repl"
+                and reference != source):
             raise RuntimeError("README differs from repository file: " + relative)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(source, encoding="utf-8")
@@ -234,11 +235,20 @@ def write_model_for_stage(destination, stage):
     target.write_text(source, encoding="utf-8")
 
 
+def write_platform_for_stage(destination, stage):
+    source = (ROOT / "platforms" / "stm32_lis2dw12.repl").read_text(encoding="utf-8")
+    if STAGE_ORDER[stage] < 6:
+        source = source.replace("    Interrupt1 -> gpioPortB@1\n", "")
+    target = destination / "platforms" / "stm32_lis2dw12.repl"
+    target.write_text(source, encoding="utf-8")
+
+
 def check(renode, destination, final_stage):
     for index, (script, marker, stage) in enumerate(CHECKS):
         if STAGE_ORDER[stage] > final_stage:
             continue
         write_model_for_stage(destination, stage)
+        write_platform_for_stage(destination, stage)
         command = [
             renode, "--config", str(destination / ("renode-" + str(index) + ".config")),
             "--console", "--disable-gui", "--plain", script,
@@ -260,7 +270,9 @@ def check(renode, destination, final_stage):
             raise RuntimeError(script + " failed:\n" + result.stdout)
         print(marker, flush=True)
 
-    write_model_for_stage(destination, "stage" + str(final_stage))
+    final_stage_name = "stage" + str(final_stage)
+    write_model_for_stage(destination, final_stage_name)
+    write_platform_for_stage(destination, final_stage_name)
 
 
 def recreate_workspace(path):

@@ -1,4 +1,0 @@
-using "platforms/cpus/stm32l072.repl"
-
-accel: Tutorial.LIS2DW12 @ i2c1 0x18
-    Interrupt1 -> gpioPortB@1

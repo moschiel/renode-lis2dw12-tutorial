@@ -1092,10 +1092,10 @@ external pin.
 
 ### 6.3 Connect INT1 to the STM32
 
-Create a platform variant that connects the sensor output to STM32 GPIO `PB1`.
-The supplied CubeMX project configures this pin as a rising-edge EXTI input:
+Open the existing `platforms/stm32_lis2dw12.repl` created in tutorial section
+2.5 and add the indented `Interrupt1` connection below `accel`. The supplied
+CubeMX project configures STM32 GPIO `PB1` as a rising-edge EXTI input:
 
-<!-- tutorial-file: platforms/stm32_lis2dw12_interrupt.repl -->
 ```repl
 using "platforms/cpus/stm32l072.repl"
 
@@ -1103,8 +1103,8 @@ accel: Tutorial.LIS2DW12 @ i2c1 0x18
     Interrupt1 -> gpioPortB@1
 ```
 
-In REPL syntax, the indented connection means that the `Interrupt1` GPIO from
-`accel` is wired to pin 1 of the STM32 GPIO port B.
+This is the complete updated file. In REPL syntax, the indented line wires the
+`Interrupt1` GPIO from `accel` to pin 1 of the STM32 GPIO port B.
 
 ### 6.4 Validate the interrupt path
 
