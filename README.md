@@ -1,5 +1,9 @@
 # Modeling an I2C Accelerometer in Renode: LIS2DW12
 
+<p align="center">
+  <img src="figures/image.png" alt="LIS2DW12 accelerometer model and register viewer in Renode">
+</p>
+
 The LIS2DW12 is a three-axis accelerometer with a register-based interface.
 Renode already provides a model of this device. In this tutorial, we build a
 smaller version from the datasheet and connect it to STM32 firmware.
