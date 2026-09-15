@@ -1184,9 +1184,9 @@ tool follows the datasheet axis convention: X and Y lie in the package plane,
 while +Z is normal to its top face. Optional overlays show the three vector
 components and dashed projection guides.
 
-`SetSample`, `ReadRegister`, and `WriteRegister` are public integration points
-for automated tests and this [optional GUI](#7-optional-interactive-web-view-vibe-coded).
-Their comments in the model make it clear when an operation bypasses the I2C
+`SetSample`, `ReadRegister`, and `WriteRegister` are public integration points defined at the C# model
+for automated tests and this [optional Web GUI](#7-optional-interactive-web-view-vibe-coded).
+Their comments in the C# model make it clear when an operation bypasses the I2C
 master.
 
 ```sh
