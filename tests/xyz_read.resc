@@ -1,9 +1,10 @@
 include @scripts/accel_isolated.resc
+include @scripts/register_ids.py
 python "from System import Array, Byte"
 python "dev = monitor.Machine['sysbus.accel']"
 
 # DS11811 Rev. 9, Table 21: all output registers reset to zero.
-python "dev.Write(Array[Byte]([0x28]))"
+python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "assert list(dev.Read(1)) == [0], 'OUT_X_L reset value mismatch'"
 python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [0, 0, 0], 'XYZ reset values mismatch'"
 
@@ -11,30 +12,30 @@ python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [0, 0, 
 # X=1000 -> 0x03E8, Y=-500 -> 0xFE0C, Z=16384 -> 0x4000.
 python "dev.FinishTransmission()"
 python "dev.SetSample(1000, -500, 16384)"
-python "dev.Write(Array[Byte]([0x28]))"
+python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "xLow = list(dev.Read(1))[0]"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x29]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_X_H]))"
 python "xHigh = list(dev.Read(1))[0]"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2A]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_Y_L]))"
 python "yLow = list(dev.Read(1))[0]"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2B]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_Y_H]))"
 python "yHigh = list(dev.Read(1))[0]"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2C]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_Z_L]))"
 python "zLow = list(dev.Read(1))[0]"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x2D]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_Z_H]))"
 python "zHigh = list(dev.Read(1))[0]"
 python "assert [xLow, xHigh, yLow, yHigh, zLow, zHigh] == [0xE8, 0x03, 0x0C, 0xFE, 0x00, 0x40], 'XYZ individual encoding mismatch'"
 python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [1000, -500, 16384], 'XYZ model state mismatch'"
 
 # Output registers are read-only to the I2C master.
 python "dev.FinishTransmission()"
-python "dev.Write(Array[Byte]([0x28, 0x00, 0x00]))"
+python "dev.Write(Array[Byte]([RegisterId.OUT_X_L, 0x00, 0x00]))"
 python "dev.FinishTransmission()"
-python "dev.Write(Array[Byte]([0x28]))"
+python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "assert list(dev.Read(1)) == [0xE8], 'XYZ output registers must not be writable'"
 
 python "dev.Reset()"
-python "dev.Write(Array[Byte]([0x28]))"
+python "dev.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "assert list(dev.Read(1)) == [0], 'hardware reset did not clear OUT_X_L'"
 python "assert [int(dev.SampleX), int(dev.SampleY), int(dev.SampleZ)] == [0, 0, 0], 'hardware reset did not clear XYZ outputs'"
 

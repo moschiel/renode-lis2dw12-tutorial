@@ -1,4 +1,5 @@
 include @models/LIS2DW12.cs
+include @scripts/register_ids.py
 mach create "lis2dw12-model-comparison"
 machine LoadPlatformDescriptionFromString "custom: Tutorial.LIS2DW12 @ sysbus"
 machine LoadPlatformDescriptionFromString "reference: Sensors.LIS2DW12 @ sysbus"
@@ -10,8 +11,8 @@ python "custom.Reset()"
 python "reference.Reset()"
 
 # WHO_AM_I is the first behavior shared by both models.
-python "custom.Write(Array[Byte]([0x0F]))"
-python "reference.Write(Array[Byte]([0x0F]))"
+python "custom.Write(Array[Byte]([RegisterId.WHO_AM_I]))"
+python "reference.Write(Array[Byte]([RegisterId.WHO_AM_I]))"
 python "customValue = list(custom.Read(1))"
 python "referenceValue = list(reference.Read(1))"
 python "print('custom WHO_AM_I: ' + str(customValue))"
@@ -20,7 +21,7 @@ python "assert customValue == referenceValue == [0x44], 'WHO_AM_I comparison fai
 
 # Both models expose six consecutive, read-only output registers that reset to zero.
 python "custom.FinishTransmission(); reference.FinishTransmission()"
-python "custom.Write(Array[Byte]([0x28])); reference.Write(Array[Byte]([0x28]))"
+python "custom.Write(Array[Byte]([RegisterId.OUT_X_L])); reference.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "customValues = list(custom.Read(6)); referenceValues = list(reference.Read(6))"
 python "print('custom XYZ reset: ' + str(customValues))"
 python "print('reference XYZ reset: ' + str(referenceValues))"
@@ -28,9 +29,9 @@ python "assert customValues == referenceValues == [0, 0, 0, 0, 0, 0], 'XYZ reset
 
 # Our teaching model accepts raw register values directly. The official model
 # accepts physical acceleration values and converts them according to its mode.
-python "custom.FinishTransmission(); custom.Write(Array[Byte]([0x20, 0x20])); custom.FinishTransmission()"
+python "custom.FinishTransmission(); custom.Write(Array[Byte]([RegisterId.CTRL1, 0x20])); custom.FinishTransmission()"
 python "custom.SetSample(1000, -500, 16384)"
-python "custom.Write(Array[Byte]([0x28]))"
+python "custom.Write(Array[Byte]([RegisterId.OUT_X_L]))"
 python "assert list(custom.Read(6)) == [0xE8, 0x03, 0x0C, 0xFE, 0x00, 0x40], 'custom XYZ stimulus mismatch'"
 
 echo "PASS compare: custom and reference identity/XYZ access"

@@ -1,13 +1,14 @@
 include @scripts/accel_isolated.resc
+include @scripts/register_ids.py
 python "from System import Array, Byte"
 python "dev = monitor.Machine['sysbus.accel']"
 
 # Routing alone does not assert INT1 while the device is in power-down.
-python "dev.Write(Array[Byte]([0x23, 0x01]))"
+python "dev.Write(Array[Byte]([RegisterId.CTRL4_INT1_PAD_CTRL, 0x01]))"
 python "assert not dev.Interrupt1.IsSet, 'INT1 asserted while acquisition was disabled'"
 
 # Enabling acquisition alone does not create a data-ready event.
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x20]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL1, 0x20]))"
 python "assert not dev.Interrupt1.IsSet, 'ODR alone asserted INT1'"
 
 # A completed sample sets DRDY and the enabled route forwards it to INT1.
@@ -15,18 +16,18 @@ python "dev.SetSample(1000, -500, 16384)"
 python "assert dev.Interrupt1.IsSet, 'new sample did not assert routed INT1'"
 
 # Reading an axis high byte acknowledges the sample and deasserts INT1.
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x29]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_X_H]))"
 python "dev.Read(1)"
 python "assert not dev.Interrupt1.IsSet, 'acknowledged sample left INT1 asserted'"
 
 # Routing gates a real pending event without creating or consuming it.
 python "dev.SetSample(-1, 2, -3)"
 python "assert dev.Interrupt1.IsSet, 'second sample did not reassert INT1'"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x23, 0x00]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL4_INT1_PAD_CTRL, 0x00]))"
 python "assert not dev.Interrupt1.IsSet, 'INT1 ignored disabled routing'"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x23, 0x01]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL4_INT1_PAD_CTRL, 0x01]))"
 python "assert dev.Interrupt1.IsSet, 'pending DRDY did not follow re-enabled routing'"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x00]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL1, 0x00]))"
 python "assert not dev.Interrupt1.IsSet and dev.Status == 0, 'power-down did not clear pending DRDY'"
 
 python "dev.Reset()"

@@ -87,7 +87,7 @@ Copy-Item -Recurse firmware ..\my-lis2dw12\firmware
 Copy-Item tools\build_firmware.py ..\my-lis2dw12\tools\build_firmware.py
 Copy-Item .env.example ..\my-lis2dw12\.env.example
 Copy-Item tools\lab.py, tools\renode_client.py ..\my-lis2dw12\tools
-Copy-Item scripts\bridge.py, scripts\lab.resc, scripts\uart_capture.py ..\my-lis2dw12\scripts
+Copy-Item scripts\bridge.py, scripts\lab.resc, scripts\register_ids.py, scripts\uart_capture.py ..\my-lis2dw12\scripts
 Copy-Item -Recurse web ..\my-lis2dw12\web
 Set-Location ..\my-lis2dw12
 ```
@@ -102,7 +102,7 @@ cp -R firmware ../my-lis2dw12/firmware
 cp tools/build_firmware.py ../my-lis2dw12/tools/build_firmware.py
 cp .env.example ../my-lis2dw12/.env.example
 cp tools/lab.py tools/renode_client.py ../my-lis2dw12/tools/
-cp scripts/bridge.py scripts/lab.resc scripts/uart_capture.py ../my-lis2dw12/scripts/
+cp scripts/bridge.py scripts/lab.resc scripts/register_ids.py scripts/uart_capture.py ../my-lis2dw12/scripts/
 cp -R web ../my-lis2dw12/web
 cd ../my-lis2dw12
 ```
@@ -334,12 +334,16 @@ You can write Python snippets in the **Monitor** to manually test the model's
 expected behavior:
 
 ```text
+include @scripts/register_ids.py
 python "from System import Array, Byte"
 python "dev = monitor.Machine['sysbus.accel']"
-python "dev.Write(Array[Byte]([0x10]))"
+python "dev.Write(Array[Byte]([RegisterId.TRANSPORT_TEST]))"
 python "print(list(dev.Read(1)))"
 ```
 
+`include @scripts/register_ids.py`, loads register addresses definitions in one place
+and lets commands use names such as `RegisterId.WHO_AM_I` and
+`RegisterId.OUT_X_L`.
 `Array[Byte]` creates an array for the C# method. `dev` points to the `accel`
 instance declared in the REPL, the Write and Read call are the functions declared in the C# model. **Expected:** `[165]`, or `0xA5`, the reset
 value of `TRANSPORT_TEST`. Enter `quit` when finished.
@@ -944,9 +948,7 @@ AcknowledgeDataReady(register);
 IncrementSelectedRegister();
 ```
 
-The helper models the default acknowledgement rule without making the public
-[GUI inspection API](#7-optional-interactive-web-view-vibe-coded) consume the
-event:
+The helper models the default acknowledgement rule:
 
 ```csharp
 private void AcknowledgeDataReady(byte register)
@@ -1047,17 +1049,35 @@ Define the routing bit and recalculate the pin whenever firmware changes it:
 // Add this address to RegisterId.
 Control4Int1PadControl = 0x23,
 
+// Add control4 register definition to the constructor
 // DS11811 Rev. 9, datasheet section 8.7: this stage models only INT1_DRDY.
 RegistersCollection.DefineRegister((byte)RegisterId.Control4Int1PadControl, 0x00)
     .WithFlag(0, out dataReadyInterruptEnabled, name: "INT1_DRDY")
     .WithWriteCallback((_, __) => UpdateInterrupt1());
 ```
 
-Call `UpdateInterrupt1()` after setting or clearing `dataReady` in `SetSample`,
-`HandleAcquisitionConfigurationChanged`, and `AcknowledgeDataReady`. The routing
-callback handles changes to the other side of the logical AND:
+Section 5 changes `dataReady.Value` in three places. Replace those assignments
+so every data-ready transition follows one path:
 
 ```csharp
+// In SetSample:
+SetDataReady(true);
+
+// In HandleAcquisitionConfigurationChanged and AcknowledgeDataReady:
+SetDataReady(false);
+```
+
+Then add `SetDataReady`. It stores the status bit and immediately updates its
+routed GPIO representation:
+
+```csharp
+private void SetDataReady(bool value)
+{
+    // Keep the status bit and its routed GPIO representation synchronized.
+    dataReady.Value = value;
+    UpdateInterrupt1();
+}
+
 private void UpdateInterrupt1()
 {
     // CTRL4 only routes the pending data-ready event; it does not create one.

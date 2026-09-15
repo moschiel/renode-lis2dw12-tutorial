@@ -2,7 +2,8 @@ include @models/LIS2DW12.cs
 mach create "lis2dw12-lab"
 machine LoadPlatformDescription @platforms/stm32_lis2dw12_interrupt.repl
 sysbus LoadELF @firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
+include @scripts/register_ids.py
 # Preload the deterministic sample used by the firmware's earlier XYZ checks.
 # Later GUI interactions represent new conversions while acquisition is active.
 python "dev = monitor.Machine['sysbus.i2c1.accel']"
-python "dev.WriteRegister(0x20, 0x20); dev.SetSample(1000, -500, 16384)"
+python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.SetSample(1000, -500, 16384)"

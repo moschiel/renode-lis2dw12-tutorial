@@ -1,37 +1,38 @@
 include @scripts/accel_isolated.resc
+include @scripts/register_ids.py
 python "from System import Array, Byte"
 python "dev = monitor.Machine['sysbus.accel']"
 
 # DS11811 Rev. 9, sections 8.4 and 8.11: power-down blocks new samples.
-python "dev.Write(Array[Byte]([0x20]))"
+python "dev.Write(Array[Byte]([RegisterId.CTRL1]))"
 python "assert list(dev.Read(1)) == [0x00], 'CTRL1 reset value mismatch'"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.STATUS]))"
 python "assert list(dev.Read(1)) == [0x00], 'DRDY must be clear in power-down'"
 python "dev.SetSample(1000, -500, 16384)"
 python "assert dev.SampleX == 0 and dev.SampleY == 0 and dev.SampleZ == 0, 'power-down accepted a sample'"
 
 # A non-zero ODR enables acquisition but does not invent a completed sample.
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x20]))"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL1, 0x20]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL1]))"
 python "assert list(dev.Read(1)) == [0x20], 'CTRL1 ODR write mismatch'"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.STATUS]))"
 python "assert list(dev.Read(1)) == [0x00], 'ODR alone must not set DRDY'"
 
 # SetSample represents a completed conversion. STATUS remains set until an
 # axis high byte is read, matching the default latched data-ready behavior.
 python "dev.SetSample(1000, -500, 16384)"
 python "assert dev.SampleX == 1000 and dev.SampleY == -500 and dev.SampleZ == 16384, 'active acquisition rejected a sample'"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.STATUS]))"
 python "assert list(dev.Read(1)) == [0x01], 'new sample did not set DRDY'"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x29]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.OUT_X_H]))"
 python "dev.Read(1)"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.STATUS]))"
 python "assert list(dev.Read(1)) == [0x00], 'axis high-byte read did not clear DRDY'"
 
 # Power-down clears a pending event and prevents later sample updates.
 python "dev.SetSample(-1, 2, -3)"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x20, 0x00]))"
-python "dev.FinishTransmission(); dev.Write(Array[Byte]([0x27]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.CTRL1, 0x00]))"
+python "dev.FinishTransmission(); dev.Write(Array[Byte]([RegisterId.STATUS]))"
 python "assert list(dev.Read(1)) == [0x00], 'DRDY did not clear in power-down'"
 python "dev.SetSample(7, 8, 9)"
 python "assert dev.SampleX == -1 and dev.SampleY == 2 and dev.SampleZ == -3, 'power-down changed XYZ'"

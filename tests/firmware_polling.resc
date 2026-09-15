@@ -3,11 +3,12 @@ mach create "lis2dw12-firmware-polling"
 machine LoadPlatformDescription @platforms/stm32_lis2dw12.repl
 sysbus LoadELF @firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
 include @scripts/uart_capture.py
+include @scripts/register_ids.py
 
 # Preload XYZ for the earlier firmware checks, then let the STM32 reach the
 # polling loop before representing a newly completed conversion.
 python "dev = monitor.Machine['sysbus.i2c1.accel']"
-python "dev.WriteRegister(0x20, 0x20); dev.SetSample(1000, -500, 16384)"
+python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.SetSample(1000, -500, 16384)"
 emulation RunFor "0.020"
 python "dev.SetSample(1000, -500, 16384)"
 emulation RunFor "0.100"

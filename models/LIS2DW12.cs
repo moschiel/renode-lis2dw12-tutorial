@@ -70,8 +70,7 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             SetAxis(y, outputYLow, outputYHigh, nameof(y));
             SetAxis(z, outputZLow, outputZHigh, nameof(z));
             // A completed conversion makes a new XYZ set available to firmware.
-            dataReady.Value = true;
-            UpdateInterrupt1();
+            SetDataReady(true);
             this.Log(LogLevel.Debug, "Sample updated to X={0}, Y={1}, Z={2}.", x, y, z);
         }
 
@@ -170,9 +169,8 @@ namespace Antmicro.Renode.Peripherals.Tutorial
             // Entering power-down invalidates any pending data-ready indication.
             if(!AcquisitionEnabled)
             {
-                dataReady.Value = false;
+                SetDataReady(false);
             }
-            UpdateInterrupt1();
         }
 
         private void AcknowledgeDataReady(byte register)
@@ -183,10 +181,16 @@ namespace Antmicro.Renode.Peripherals.Tutorial
                 || register == (byte)RegisterId.OutputYHigh
                 || register == (byte)RegisterId.OutputZHigh))
             {
-                dataReady.Value = false;
-                UpdateInterrupt1();
+                SetDataReady(false);
                 this.Log(LogLevel.Debug, "XYZ data acknowledged; DRDY cleared.");
             }
+        }
+
+        private void SetDataReady(bool value)
+        {
+            // Keep the status bit and its routed GPIO representation synchronized.
+            dataReady.Value = value;
+            UpdateInterrupt1();
         }
 
         private void IncrementSelectedRegister()

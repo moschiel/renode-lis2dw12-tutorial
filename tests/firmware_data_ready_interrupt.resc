@@ -3,11 +3,12 @@ mach create "lis2dw12-firmware-data-ready-interrupt"
 machine LoadPlatformDescription @platforms/stm32_lis2dw12_interrupt.repl
 sysbus LoadELF @firmware/lis2dw12-demo/Debug/lis2dw12-demo.elf
 include @scripts/uart_capture.py
+include @scripts/register_ids.py
 
 # The second sample is the event observed first by STATUS.DRDY and then by
 # the routed INT1 signal.
 python "dev = monitor.Machine['sysbus.i2c1.accel']"
-python "dev.WriteRegister(0x20, 0x20); dev.SetSample(1000, -500, 16384)"
+python "dev.WriteRegister(RegisterId.CTRL1, 0x20); dev.SetSample(1000, -500, 16384)"
 emulation RunFor "0.020"
 python "dev.SetSample(1000, -500, 16384)"
 emulation RunFor "0.100"

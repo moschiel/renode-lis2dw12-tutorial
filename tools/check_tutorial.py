@@ -67,6 +67,8 @@ def materialize(destination):
     )
     shutil.copy2(ROOT / "scripts" / "uart_capture.py",
                  destination / "scripts" / "uart_capture.py")
+    shutil.copy2(ROOT / "scripts" / "register_ids.py",
+                 destination / "scripts" / "register_ids.py")
     print("PASS README: reconstructed", len(seen), "files", flush=True)
 
 
@@ -93,7 +95,17 @@ def write_model_for_stage(destination, stage):
             )
             source = source.replace("            Interrupt1.Unset();\n", "")
             # Stage 5 owns the DRDY lifecycle but has no external interrupt yet.
+            source = source.replace("SetDataReady(true);", "dataReady.Value = true;")
+            source = source.replace("SetDataReady(false);", "dataReady.Value = false;")
             source = source.replace("            UpdateInterrupt1();\n", "")
+            set_data_ready_helper = re.compile(
+                r"        private void SetDataReady\(bool value\)\n"
+                r"        \{\n"
+                r"(?:.*\n)*?        \}\n\n"
+            )
+            source, removed = set_data_ready_helper.subn("", source, count=1)
+            if removed != 1:
+                raise RuntimeError("Could not remove stage-6 data-ready helper")
             interrupt_helper = re.compile(
                 r"        private void UpdateInterrupt1\(\)\n"
                 r"        \{\n"
