@@ -28,9 +28,9 @@ register maps.
 ## Contents
 
 - [1. Set up the project and I2C skeleton](#1-set-up-the-project-and-i2c-skeleton)
-  - [1.1 Separate I2C transport from register storage](#11-separate-i2c-transport-from-register-storage)
+  - [1.1 I2C transport and Register Storage](#11-i2c-transport-and-register-storage)
   - [1.2 Create the model](#12-create-the-model)
-  - [1.3 Check the transport with temporary storage](#13-check-the-transport-with-temporary-storage)
+  - [1.3 Check the transport calls with temporary register storage](#13-check-the-transport-calls-with-temporary-register-storage)
   - [1.4 Run the stage 1 validation](#14-run-the-stage-1-validation)
 - [2. WHO_AM_I and STM32 firmware](#2-who_am_i-and-stm32-firmware)
   - [2.1 Register behavior](#21-register-behavior)
