@@ -10,7 +10,7 @@ smaller version from the datasheet and connect it to STM32 firmware.
 
 We use the [official model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs)
 as an architectural reference and for comparison. The tutorial reconstructs a
-possible development process; it does not describe the original authors' thoughts.
+possible development process.
 Hardware behavior comes from the [ST DS11811 Rev. 9 datasheet](https://www.st.com/resource/en/datasheet/lis2dw12.pdf).
 
 The scope is a reduced but practical flow: identify the device, apply basic
@@ -18,12 +18,12 @@ initialization, read XYZ samples, and observe data-ready by polling or interrupt
 The same firmware is run against our model and Renode's official model for comparison.
 The [optional GUI](#7-optional-interactive-web-view-vibe-coded) and utility
 scripts are 100% *vibe coded* support assets and are not
-part of the modeling lesson. See [Limits and References](#8-limits-and-references)
+part of the modeling tutorial. See [Limits and References](#8-limits-and-references)
 for the detailed boundaries.
 
 Recommended preparation: the [PCF8574 tutorial](https://github.com/moschiel/renode-pcf8574-tutorial).
 It introduces C# models, REPL platforms, and the Monitor. Here we move on to
-register maps and transaction state.
+register maps.
 
 ## Contents
 
@@ -114,7 +114,7 @@ cd ../my-lis2dw12
 All remaining commands start from `my-lis2dw12`.
 **Monitor** blocks run inside the Renode session, not in the terminal.
 
-### 1.1 Separate I2C transport from register storage
+### 1.1 I2C transport and Register Storage
 
 In **datasheet section 6.1.1, I2C operation**, the `SUB` byte
 which selects an internal register. During a write, subsequent bytes are data.
@@ -132,8 +132,7 @@ The implementation separates two responsibilities:
 
 The [official model](https://github.com/renode/renode-infrastructure/blob/master/src/Emulator/Peripherals/Peripherals/Sensors/LIS2DW12.cs)
 also separates these responsibilities. Its `Write` accepts address and data in
-separate calls, and `FinishTransmission` ends that state. We follow this structure
-with a boolean and a pointer.
+separate calls, and `FinishTransmission` ends that state.
 
 The physical device also supports SPI (datasheet section 6.2). The reference implementation
 uses `II2CPeripheral`; this tutorial we are going to implement I2C only.
@@ -257,11 +256,9 @@ while `Reset` also restores the collection values. Keeping the selection between
 
 `this.Log` uses Renode's logging system. State-changing writes and resets use
 `Debug`; frequent selections and reads use `Noisy`. Renode filters disabled
-levels before formatting these messages, and the arguments used here are cheap.
+levels before formatting these messages.
 
-We have not defined any sensor registers yet. Automatic increment will be added
-with `CTRL2.IF_ADD_INC` (datasheet section 8.5), so this stage does not represent the full
-LIS2DW12 behavior after reset.
+We have not defined any sensor registers yet.
 
 In the **Terminal**, check compilation:
 
@@ -273,7 +270,7 @@ renode --console --disable-gui --plain models/LIS2DW12.cs
 `--disable-gui` avoids graphical windows and `--plain` simplifies output.
 In the **Monitor**, enter `quit`.
 
-### 1.3 Check the transport with temporary storage
+### 1.3 Check the transport calls with temporary register storage
 
 `TRANSPORT_TEST` is a temporary writable byte in the `LIS2DW12` class itself.
 Its address and value are artificial; they do not belong to the LIS2DW12 map.
@@ -358,7 +355,7 @@ From this point onward, the tutorial uses supplied `.resc` scripts for validatio
 The `.resc` scritps are repeatable, document the expected behavior in comments.
 Take a look at the test files to understand the syntax used to write Renode tests.
 
-### 1.4 Run the stage 1 validation
+### 1.4 Run this section validation
 
 `tests/transport.resc` is supplied with the repository. It checks the temporary
 register's reset value, separate and combined writes, an empty write, zero-length
@@ -372,9 +369,7 @@ renode --console --disable-gui --plain tests/transport.resc
 ```
 
 **Expected:** `PASS transport: register storage`, followed by Renode
-exiting. An `assert` stops the script if the response differs. If an error occurs,
-check the message before the prompt; the process exit code alone does not
-guarantee that the assertions passed.
+exiting.
 
 ## 2. WHO_AM_I and STM32 firmware
 
@@ -407,8 +402,7 @@ RegistersCollection.DefineRegister((byte)RegisterId.WhoAmI, 0x44).WithValueField
 
 The `FieldMode.Read` argument expresses the access rule from the datasheet:
 writes to this register are ignored by the model. `RegisterId` keeps the
-datasheet addresses in one typed register map instead of scattering numeric
-addresses through the implementation.
+datasheet addresses in one typed register map.
 
 ### 2.3 Validate the model
 
@@ -562,7 +556,7 @@ The later firmware validation scripts enable the same UART analyzer automaticall
 
 The LIS2DW12 exposes each axis through two consecutive read-only registers.
 Datasheet sections **8.12 through 8.17** describe the low byte followed by the high byte;
-together they form a signed 16-bit value in two's complement.
+together they form a signed 16-bit value.
 
 At reset, all six registers contain zero. The model accepts acceleration in
 `g`, like Renode's official LIS2DW12 model, and converts it using the sensor's
@@ -1222,17 +1216,14 @@ python tools/lab.py
 It opens [localhost:8000](http://127.0.0.1:8000). Stop it with `Ctrl+C`.
 
 The lab leaves Renode running continuously. The value in the upper-right corner
-is the machine's actual elapsed virtual time; Renode prevents it from running
-ahead of host time by default, although a demanding emulation can still run
-slower than real time. See Renode's [time framework](https://renode.readthedocs.io/en/latest/advanced/time_framework.html).
+is the machine's actual elapsed virtual time. See Renode's [time framework](https://renode.readthedocs.io/en/latest/advanced/time_framework.html).
 
 ## 8. Limits and References
 
 
 This tutorial implements a common acquisition path: device identification, basic
 initialization, data-ready polling and interrupt, and XYZ sample reads.
-Configuration affects the model only when the demonstrated firmware observes
-that effect. Other fields may be tagged, stored, or return a documented default
+Other register fields may be tagged, stored, or return a documented default
 without a dedicated test.
 
 Electrical characteristics, analog filtering, noise, power consumption, and
@@ -1254,7 +1245,7 @@ configurations, not arbitrary LIS2DW12 drivers.
 ### 8.1 Optional model comparison
 
 At the end of the tutorial, `tests/compare_models.resc` can be used to run the
-cumulative checks against both `Tutorial.LIS2DW12` and Renode's official
+checks against both `Tutorial.LIS2DW12` and Renode's official
 `Sensors.LIS2DW12` model. Run it from the project root:
 
 ```sh
